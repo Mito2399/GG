@@ -49,6 +49,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'app.middleware.BlockNonAdminMiddleware',
 ]
 
 ROOT_URLCONF = 'GG.urls'
@@ -123,3 +124,5 @@ MEDIA_URL = '/images/'
 
 STATICFILES_DIRS = (os.path.join(BASE_DIR, 'app/static'),)
 
+
+ADMIN_PIN = "0010"
