@@ -1,0 +1,54 @@
+{% extends 'app/base.html' %}
+
+{% block title %}Dashboard — Green Garden{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<h4 class="mb-4">Dashboard</h4>
+
+<div class="card shadow-sm border-0">
+<div class="card-body">
+
+  <h5 class="mb-3">Overview</h5>
+
+  <div class="row text-center mb-4">
+    <div class="col-md-3">
+      <h4 class="fw-bold">{{ total_clients }}</h4>
+      <div class="text-muted small">Total Clients</div>
+    </div>
+    <div class="col-md-3">
+      <h4 class="fw-bold text-success">{{ active_status }}</h4>
+      <div class="text-muted small">Active Plans</div>
+    </div>
+    <div class="col-md-3">
+      <h4 class="fw-bold text-danger">{{ pending_payments }}</h4>
+      <div class="text-muted small">Pending Payments</div>
+    </div>
+    <div class="col-md-3">
+      <h4 class="fw-bold">₱{{ collected }}</h4>
+      <div class="text-muted small">Total Collected</div>
+    </div>
+  </div>
+
+  <hr>
+
+  <h6 class="mb-3">Recent Activity</h6>
+
+  <ul class="list-group list-group-flush">
+    <li class="list-group-item">
+      Juan Dela Cruz paid ₱2,000
+      <span class="text-muted small float-end">Today</span>
+    </li>
+    <li class="list-group-item">
+      Maria Santos registered as new client
+      <span class="text-muted small float-end">Yesterday</span>
+    </li>
+    <li class="list-group-item">
+      Pedro Cruz missed payment
+      <span class="text-muted small float-end">2 days ago</span>
+    </li>
+  </ul>
+
+</div>
+</div>
+{% endblock %}
