@@ -1,0 +1,124 @@
+{% extends 'app/base.html' %}
+{% load humanize %}
+
+{% block title %}Dashboard — Green Garden{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0">Dashboard</h4>
+  <button class="btn btn-outline-secondary btn-sm no-print" onclick="window.print()">🖨️ Print</button>
+</div>
+
+<!-- Print header (hidden on screen) -->
+<div class="print-only mb-3">
+  <h4>Green Garden — Dashboard Summary</h4>
+  <small>Printed: <span id="print-date"></span></small>
+</div>
+
+<div class="card shadow-sm border-0">
+<div class="card-body">
+
+  <h5 class="mb-3">Overview</h5>
+
+  <!-- Row 1: Client counts -->
+  <div class="row text-center mb-3">
+    <div class="col-md-4 mb-3">
+      <div class="card border-0 bg-light py-3">
+        <h4 class="fw-bold mb-1">{{ total_clients }}</h4>
+        <div class="text-muted small">Total Clients</div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card border-0 py-3" style="background:#eafaf1;">
+        <h4 class="fw-bold mb-1 text-success">{{ active_status }}</h4>
+        <div class="text-muted small">Active Plans</div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card border-0 py-3" style="background:#fef9e7;">
+        <h4 class="fw-bold mb-1 text-warning">{{ inactive_count }}</h4>
+        <div class="text-muted small">Inactive (No Plan)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Financial / completion counts -->
+  <div class="row text-center mb-4">
+    <div class="col-md-4 mb-3">
+      <div class="card border-0 py-3" style="background:#eaf4fb;">
+        <h4 class="fw-bold mb-1 text-info">{{ completed_count }}</h4>
+        <div class="text-muted small">Completed Plans</div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card border-0 py-3" style="background:#fdf2f8;">
+        <h4 class="fw-bold mb-1 text-danger">{{ pending_payments }}</h4>
+        <div class="text-muted small">Pending Payments</div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-3">
+      <div class="card border-0 bg-light py-3">
+        <h4 class="fw-bold mb-1">₱{{ collected|floatformat:2|intcomma }}</h4>
+        <div class="text-muted small">Total Collected</div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="row">
+
+    <!-- Recent Payments -->
+    <div class="col-md-6">
+      <h6 class="mb-3">Recent Payments</h6>
+      <ul class="list-group list-group-flush">
+        {% for p in recent_payments %}
+        <li class="list-group-item d-flex justify-content-between align-items-start px-0">
+          <div>
+            <div class="fw-semibold">{{ p.client_status.client.full_name }}</div>
+            <div class="text-muted small">
+              ₱{{ p.amount|floatformat:2|intcomma }} — {{ p.month|date:"F Y" }}
+            </div>
+          </div>
+          <span class="text-muted small text-nowrap ms-3">
+            {{ p.date_paid|date:"M d, Y" }}
+          </span>
+        </li>
+        {% empty %}
+        <li class="list-group-item px-0 text-muted">No payments recorded yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Recent Employee Activity -->
+    <div class="col-md-6">
+      <h6 class="mb-3">Recent Employee Activity</h6>
+      <ul class="list-group list-group-flush">
+        {% for log in recent_logs %}
+        <li class="list-group-item d-flex justify-content-between align-items-start px-0">
+          <div>
+            <div class="fw-semibold">{{ log.full_name }}</div>
+            <div class="text-muted small">{{ log.activities }}</div>
+          </div>
+          <span class="text-muted small text-nowrap ms-3">
+            {% if log.time_in %}{{ log.time_in|date:"M d, g:i A" }}{% endif %}
+          </span>
+        </li>
+        {% empty %}
+        <li class="list-group-item px-0 text-muted">No activity recorded yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById("print-date").textContent = new Date().toLocaleString();
+</script>
+{% endblock %}

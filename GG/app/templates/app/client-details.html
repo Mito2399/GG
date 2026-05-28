@@ -1,0 +1,176 @@
+{% extends 'app/base.html' %}
+{% load humanize %}
+{% block title %}Client Profile — Green Garden{% endblock %}
+{% block nav_records %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h3 class="mb-0">Client Profile</h3>
+  <div class="d-flex gap-2 no-print">
+    <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">🖨️ Print</button>
+    <a href="{% url 'records' %}" class="btn btn-secondary btn-sm">← Back</a>
+  </div>
+</div>
+
+<!-- Print header -->
+<div class="print-only mb-3">
+  <h5>Green Garden — Client Profile</h5>
+  <small>Printed: <span id="client-print-date"></span></small><hr>
+</div>
+
+<!-- Personal Information -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+  <h5 class="mb-3">Personal Information</h5>
+  <div class="row">
+    <div class="col-md-4"><strong>First Name:</strong> {{ client.client_first_name }}</div>
+    <div class="col-md-4"><strong>Middle Name:</strong> {{ client.client_middle_name|default:"—" }}</div>
+    <div class="col-md-4"><strong>Last Name:</strong> {{ client.client_last_name }}</div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-md-6"><strong>Address:</strong> {{ client.client_address }}</div>
+    <div class="col-md-3"><strong>Contact:</strong> {{ client.client_contact_number }}</div>
+    <div class="col-md-3"><strong>Civil Status:</strong> {{ client.client_civil_status }}</div>
+  </div>
+  <div class="row mt-2">
+    <div class="col-md-3"><strong>Birthdate:</strong> {{ client.client_date_birth }}</div>
+    <div class="col-md-3"><strong>Religion:</strong> {{ client.client_religion }}</div>
+    <div class="col-md-3"><strong>Occupation:</strong> {{ client.client_occupation }}</div>
+    <div class="col-md-3"><strong>Employer:</strong> {{ client.client_employer_name }}</div>
+  </div>
+  <div class="mt-2"><strong>Employer Address:</strong> {{ client.client_employer_address }}</div>
+</div></div>
+
+<!-- Spouse Information -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+  <h5 class="mb-3">Spouse Information</h5>
+  <div class="row">
+    <div class="col-md-4"><strong>Name:</strong> {{ client.client_spouse_name|default:"—" }}</div>
+    <div class="col-md-3"><strong>Birthdate:</strong> {{ client.client_spouse_date_birth|default:"—" }}</div>
+    <div class="col-md-3"><strong>Occupation:</strong> {{ client.client_spouse_occupation|default:"—" }}</div>
+    <div class="col-md-2"><strong>Employer:</strong> {{ client.client_spouse_employer|default:"—" }}</div>
+  </div>
+</div></div>
+
+<!-- Government ID -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+  <h5 class="mb-3">Government ID</h5>
+  <div class="row">
+    <div class="col-md-3"><strong>Type:</strong> {{ client.client_id_type }}</div>
+    <div class="col-md-3"><strong>Number:</strong> {{ client.client_id_number }}</div>
+    <div class="col-md-3"><strong>Date Issued:</strong> {{ client.client_date_issued }}</div>
+    <div class="col-md-3"><strong>Place Issued:</strong> {{ client.client_place_issued }}</div>
+  </div>
+</div></div>
+
+<!-- Beneficiaries -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+  <h5 class="mb-3">Beneficiaries</h5>
+  {% if client.beneficiaries.all %}
+  <ul class="list-group list-group-flush">
+    {% for b in client.beneficiaries.all %}
+    <li class="list-group-item px-0">{{ b.name }} — {{ b.relationship }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">No beneficiaries added.</p>
+  {% endif %}
+</div></div>
+
+<!-- Plan & Payment Status -->
+<div class="card shadow-sm mb-4"><div class="card-body">
+  <h5 class="mb-3">Plan &amp; Payment Status</h5>
+  {% if client_status and client_status.plan != "No Plan" %}
+
+  <!-- Status badge -->
+  <div class="mb-3">
+    {% if client_status.is_cancelled %}
+      <span class="badge bg-danger fs-6">Cancelled</span>
+    {% elif client_status.status %}
+      <span class="badge bg-success fs-6">Active</span>
+    {% else %}
+      <span class="badge bg-secondary fs-6">Completed</span>
+    {% endif %}
+  </div>
+
+  <!-- Core plan details -->
+  <div class="row mb-2">
+    <div class="col-md-3"><strong>Plan:</strong> {{ client_status.plan }}</div>
+    <div class="col-md-3"><strong>Monthly:</strong> ₱{{ client_status.monthly_payment|floatformat:2|intcomma }}</div>
+    <div class="col-md-3"><strong>Duration:</strong> {{ client_status.duration }} months</div>
+    <div class="col-md-3"><strong>Start Date:</strong> {{ client_status.start_date }}</div>
+  </div>
+  <div class="row mb-2">
+    <div class="col-md-3"><strong>Months Left:</strong> {{ client_status.months_remaining }}</div>
+    <div class="col-md-3"><strong>Paid:</strong> <span class="text-success">₱{{ client_status.paid_balance|floatformat:2|intcomma }}</span></div>
+    <div class="col-md-3"><strong>Balance:</strong> <span class="text-danger">₱{{ client_status.balance|floatformat:2|intcomma }}</span></div>
+    <div class="col-md-3">
+      <strong>Date Fully Paid:</strong>
+      {% if client_status.date_fully_paid %}
+        <span class="text-success">{{ client_status.date_fully_paid }}</span>
+      {% else %}—{% endif %}
+    </div>
+  </div>
+
+  <!-- Down payment + discount -->
+  <div class="row mb-2">
+    <div class="col-md-3">
+      <strong>Down Payment:</strong>
+      {% if client_status.down_payment %}₱{{ client_status.down_payment|floatformat:2|intcomma }}{% else %}—{% endif %}
+    </div>
+    <div class="col-md-3">
+      <strong>Discount:</strong>
+      {% if client_status.discount_percent %}{{ client_status.discount_percent }}%{% else %}0%{% endif %}
+    </div>
+    <div class="col-md-3">
+      <strong>Eff. Down Payment:</strong>
+      {% if client_status.effective_down_payment %}
+        <span class="text-success">₱{{ client_status.effective_down_payment|floatformat:2|intcomma }}</span>
+      {% else %}—{% endif %}
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- Lot location -->
+  <div class="row mb-2">
+    <div class="col-md-2"><strong>Phase:</strong> {{ client_status.phase|default:"—" }}</div>
+    <div class="col-md-2"><strong>Block:</strong> {{ client_status.block|default:"—" }}</div>
+    <div class="col-md-2"><strong>Section:</strong> {{ client_status.section|default:"—" }}</div>
+    <div class="col-md-3"><strong>Lot No.:</strong> {{ client_status.lot_number|default:"—" }}</div>
+    <div class="col-md-3"><strong>P.A. No.:</strong> {{ client_status.pa_number|default:"—" }}</div>
+  </div>
+
+  <!-- Extended lot tracking -->
+  <div class="row mb-2">
+    <div class="col-md-3"><strong>Contract No.:</strong> {{ client_status.contract_number|default:"—" }}</div>
+    <div class="col-md-3"><strong>Interment Date:</strong> {{ client_status.interment_date|default:"—" }}</div>
+    <div class="col-md-3"><strong>P.A. Date:</strong> {{ client_status.pa_date|default:"—" }}</div>
+  </div>
+
+  <!-- Cancellation info -->
+  {% if client_status.is_cancelled %}
+  <div class="alert alert-danger mt-2 mb-0">
+    <strong>Cancelled on {{ client_status.cancellation_date }}:</strong>
+    {{ client_status.cancellation_reason|default:"No reason provided." }}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <p class="text-muted">No plan assigned yet. <a href="{% url 'plan' client.pk %}">Assign one →</a></p>
+  {% endif %}
+</div></div>
+
+<!-- Action buttons -->
+<div class="d-flex gap-2 mb-4 no-print">
+  <a href="{% url 'edit-details' client.pk %}" class="btn btn-warning">Edit Client</a>
+  {% if client_status and client_status.plan != "No Plan" %}
+  <a href="{% url 'payment-history' client.pk %}" class="btn btn-primary">View Payments</a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById("client-print-date").textContent = new Date().toLocaleString();
+</script>
+{% endblock %}

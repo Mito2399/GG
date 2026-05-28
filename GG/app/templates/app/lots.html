@@ -1,0 +1,150 @@
+{% extends 'app/base.html' %}
+{% load humanize %}
+{% block title %}Lots — Green Garden{% endblock %}
+{% block nav_lots %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="mb-0">Lot Records</h4>
+  <button class="btn btn-outline-secondary btn-sm no-print" onclick="window.print()">🖨️ Print</button>
+</div>
+
+<!-- Print header -->
+<div class="print-only mb-3">
+  <h5>Green Garden — Lot Records</h5>
+  <small>Printed: <span id="lots-print-date"></span></small>
+</div>
+
+<!-- Search / Filter -->
+<div class="card shadow-sm border-0 mb-4 no-print"><div class="card-body">
+  <h5 class="mb-3">Search Lots</h5>
+  <form method="GET">
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label small">Lot Type</label>
+        <select name="lot_type" class="form-select">
+          <option value="">All Types</option>
+          {% for choice in plan_choices %}
+          <option value="{{ choice }}" {% if q_type == choice %}selected{% endif %}>{{ choice }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Phase</label>
+        <input type="text" name="phase" class="form-control" placeholder="e.g. P-1" value="{{ q_phase }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Block</label>
+        <input type="text" name="block" class="form-control" placeholder="e.g. B-1" value="{{ q_block }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Section</label>
+        <input type="text" name="section" class="form-control" placeholder="e.g. S-A" value="{{ q_section }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Lot No.</label>
+        <input type="text" name="lot_number" class="form-control" placeholder="e.g. L-12" value="{{ q_lot }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">Status</label>
+        <select name="status" class="form-select">
+          <option value="">All</option>
+          <option value="Active"    {% if q_status == "Active" %}selected{% endif %}>Active</option>
+          <option value="Completed" {% if q_status == "Completed" %}selected{% endif %}>Completed</option>
+          <option value="Cancelled" {% if q_status == "Cancelled" %}selected{% endif %}>Cancelled</option>
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4">Search</button>
+        <a href="{% url 'lots' %}" class="btn btn-secondary px-4">Reset</a>
+      </div>
+    </div>
+  </form>
+</div></div>
+
+<!-- Results Table -->
+<div class="card shadow-sm border-0"><div class="card-body">
+  <h5 class="mb-3">
+    Results <span class="text-muted fs-6">({{ lots|length }} record{{ lots|length|pluralize }})</span>
+  </h5>
+  <div class="table-responsive">
+  <table class="table table-hover align-middle" style="min-width:1400px; font-size:.85rem;">
+    <thead class="table-dark">
+      <tr>
+        <th>#</th>
+        <th>Lot Type</th>
+        <th>Phase</th>
+        <th>Block</th>
+        <th>Section</th>
+        <th>Lot No.</th>
+        <th>P.A. No.</th>
+        <th>Contract No.</th>
+        <th>Discount</th>
+        <th>Eff. Down Pmt</th>
+        <th>Interment Date</th>
+        <th>Date Fully Paid</th>
+        <th>P.A. Date</th>
+        <th>Lot Owner</th>
+        <th>Status</th>
+        <th class="no-print">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lot in lots %}
+      <tr class="{% if lot.is_cancelled %}table-secondary{% endif %}">
+        <td>{{ forloop.counter }}</td>
+        <td>{{ lot.plan }}</td>
+        <td>{{ lot.phase|default:"—" }}</td>
+        <td>{{ lot.block|default:"—" }}</td>
+        <td>{{ lot.section|default:"—" }}</td>
+        <td>{{ lot.lot_number|default:"—" }}</td>
+        <td>{{ lot.pa_number|default:"—" }}</td>
+        <td>{{ lot.contract_number|default:"—" }}</td>
+        <td>
+          {% if lot.discount_percent %}
+            {{ lot.discount_percent }}%
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if lot.effective_down_payment %}
+            ₱{{ lot.effective_down_payment|floatformat:2|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ lot.interment_date|default:"—" }}</td>
+        <td>
+          {% if lot.date_fully_paid %}
+            <span class="text-success">{{ lot.date_fully_paid }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ lot.pa_date|default:"—" }}</td>
+        <td>
+          <a href="{% url 'client-details' lot.client.pk %}">{{ lot.client.full_name }}</a>
+        </td>
+        <td>
+          {% if lot.is_cancelled %}
+            <span class="badge bg-danger">Cancelled</span>
+          {% elif lot.status %}
+            <span class="badge bg-success">Active</span>
+          {% else %}
+            <span class="badge bg-secondary">Completed</span>
+          {% endif %}
+        </td>
+        <td class="no-print">
+          <a href="{% url 'payment-history' lot.client.pk %}" class="btn btn-sm btn-info">Payments</a>
+          <a href="{% url 'plan' lot.client.pk %}" class="btn btn-sm btn-warning">Plan</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="16" class="text-center text-muted py-4">No lots found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.getElementById("lots-print-date").textContent = new Date().toLocaleString();
+</script>
+{% endblock %}
