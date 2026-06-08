@@ -515,12 +515,16 @@ def lots_view(request):
         .order_by("phase", "block", "section", "lot_number")
     )
 
-    q_type    = request.GET.get("lot_type", "").strip()
-    q_phase   = request.GET.get("phase", "").strip()
-    q_block   = request.GET.get("block", "").strip()
-    q_section = request.GET.get("section", "").strip()
-    q_lot     = request.GET.get("lot_number", "").strip()
-    q_status  = request.GET.get("status", "").strip()
+    q_type              = request.GET.get("lot_type", "").strip()
+    q_phase             = request.GET.get("phase", "").strip()
+    q_block             = request.GET.get("block", "").strip()
+    q_section           = request.GET.get("section", "").strip()
+    q_lot               = request.GET.get("lot_number", "").strip()
+    q_status            = request.GET.get("status", "").strip()
+    q_column_level      = request.GET.get("column_level", "").strip()
+    q_columbarium_type  = request.GET.get("columbarium_type", "").strip()
+    q_columbarium_level = request.GET.get("columbarium_level", "").strip()
+    q_tomb_number       = request.GET.get("tomb_number", "").strip()
 
     if q_type:
         lots = lots.filter(plan__icontains=q_type)
@@ -532,6 +536,17 @@ def lots_view(request):
         lots = lots.filter(section__icontains=q_section)
     if q_lot:
         lots = lots.filter(lot_number__icontains=q_lot)
+    if q_column_level:
+        lots = lots.filter(column_level__icontains=q_column_level)
+    if q_columbarium_type:
+        lots = lots.filter(columbarium_type=q_columbarium_type)
+    if q_columbarium_level:
+        try:
+            lots = lots.filter(columbarium_level=int(q_columbarium_level))
+        except ValueError:
+            pass
+    if q_tomb_number:
+        lots = lots.filter(tomb_number__icontains=q_tomb_number)
     if q_status == "Active":
         lots = lots.filter(status=True, is_cancelled=False)
     elif q_status == "Completed":
@@ -542,16 +557,19 @@ def lots_view(request):
     plan_choices = [c[0] for c in ClientStatus.PLAN_CHOICES if c[0] != "No Plan"]
 
     return render(request, "app/lots.html", {
-        "lots":         lots,
-        "q_type":       q_type,
-        "q_phase":      q_phase,
-        "q_block":      q_block,
-        "q_section":    q_section,
-        "q_lot":        q_lot,
-        "q_status":     q_status,
-        "plan_choices": plan_choices,
+        "lots":                 lots,
+        "q_type":               q_type,
+        "q_phase":              q_phase,
+        "q_block":              q_block,
+        "q_section":            q_section,
+        "q_lot":                q_lot,
+        "q_status":             q_status,
+        "q_column_level":       q_column_level,
+        "q_columbarium_type":   q_columbarium_type,
+        "q_columbarium_level":  q_columbarium_level,
+        "q_tomb_number":        q_tomb_number,
+        "plan_choices":         plan_choices,
     })
-
 
 # ─────────────────────────────────────────────── bookings ─────────────────────
 
