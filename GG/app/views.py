@@ -25,6 +25,8 @@ from .forms import (
 from .models import Booking, ClientPersonalInfo, ClientStatus, Payment, UserLog
 
 
+
+
 # ─────────────────────────────────────────────── helpers ──────────────────────
 
 def _add_months(dt: datetime.date, months: int) -> datetime.date:
@@ -429,7 +431,8 @@ def plan(request, pk):
             no_plan = plans.filter(plan="No Plan").first()
 
             def _apply(cs):
-                cs.payments.all().delete()
+                if cs.pk:
+                    cs.payments.all().delete()
                 cs.plan             = plan_name
                 cs.monthly_payment  = monthly
                 cs.duration         = duration
