@@ -93,10 +93,6 @@
       This action <strong>cannot be undone</strong>.
     </p>
     <label class="form-label mt-2">Enter 4-digit PIN to confirm</label>
-    {#
-      FIX: inputmode="numeric" + maxlength="4" gives a numeric keyboard on
-      mobile while keeping the value as a string so leading zeros survive.
-    #}
     <input type="password"
            id="deletePinInput"
            class="form-control"
