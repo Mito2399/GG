@@ -12,7 +12,6 @@
   </div>
 </div>
 
-<!-- Print header -->
 <div class="print-only mb-3">
   <h5>Green Garden — Client Profile</h5>
   <small>Printed: <span id="client-print-date"></span></small><hr>
@@ -76,124 +75,122 @@
   {% endif %}
 </div></div>
 
-<!-- Plan & Payment Status -->
+<!-- Plan & Payment Status — all plans -->
 <div class="card shadow-sm mb-4"><div class="card-body">
-  <h5 class="mb-3">Plan &amp; Payment Status</h5>
-  {% if client_status and client_status.plan != "No Plan" %}
-
-  <!-- Status badge -->
-  <div class="mb-3">
-    {% if client_status.is_cancelled %}
-      <span class="badge bg-danger fs-6">Cancelled</span>
-    {% elif client_status.status %}
-      <span class="badge bg-success fs-6">Active</span>
-    {% else %}
-      <span class="badge bg-secondary fs-6">Completed</span>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Plan &amp; Payment Status</h5>
+    {% if all_statuses.count > 1 %}
+    <span class="badge bg-info text-dark">{{ all_statuses.count }} plans</span>
     {% endif %}
   </div>
 
-  <!-- Core plan details -->
-  <div class="row mb-2">
-    <div class="col-md-3"><strong>Plan:</strong> {{ client_status.plan }}</div>
-    <div class="col-md-3"><strong>Monthly:</strong> ₱{{ client_status.monthly_payment|floatformat:2|intcomma }}</div>
-    <div class="col-md-3"><strong>Duration:</strong> {{ client_status.duration }} months</div>
-    <div class="col-md-3"><strong>Start Date:</strong> {{ client_status.start_date }}</div>
-  </div>
-  <div class="row mb-2">
-    <div class="col-md-3"><strong>Months Left:</strong> {{ client_status.months_remaining }}</div>
-    <div class="col-md-3"><strong>Paid:</strong> <span class="text-success">₱{{ client_status.paid_balance|floatformat:2|intcomma }}</span></div>
-    <div class="col-md-3"><strong>Balance:</strong> <span class="text-danger">₱{{ client_status.balance|floatformat:2|intcomma }}</span></div>
-    <div class="col-md-3">
-      <strong>Date Fully Paid:</strong>
-      {% if client_status.date_fully_paid %}
-        <span class="text-success">{{ client_status.date_fully_paid }}</span>
-      {% else %}—{% endif %}
-    </div>
-  </div>
+  {% if all_statuses %}
+    {% for cs in all_statuses %}
+    <div class="border rounded p-3 mb-3
+      {% if cs.is_cancelled %}border-danger{% elif cs.status %}border-success{% else %}border-secondary{% endif %}">
 
-  <!-- Down payment + discount -->
-  <div class="row mb-2">
-    <div class="col-md-3">
-      <strong>Down Payment:</strong>
-      {% if client_status.down_payment %}₱{{ client_status.down_payment|floatformat:2|intcomma }}{% else %}—{% endif %}
-    </div>
-    <div class="col-md-3">
-      <strong>Discount:</strong>
-      {% if client_status.discount_percent %}{{ client_status.discount_percent }}%{% else %}0%{% endif %}
-    </div>
-    <div class="col-md-3">
-      <strong>Eff. Down Payment:</strong>
-      {% if client_status.effective_down_payment %}
-        <span class="text-success">₱{{ client_status.effective_down_payment|floatformat:2|intcomma }}</span>
-      {% else %}—{% endif %}
-    </div>
-  </div>
+      <!-- Plan header -->
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="mb-0 fw-bold">{{ cs.plan }}</h6>
+        {% if cs.is_cancelled %}
+          <span class="badge bg-danger">Cancelled</span>
+        {% elif cs.status %}
+          <span class="badge bg-success">Active</span>
+        {% else %}
+          <span class="badge bg-secondary">Completed</span>
+        {% endif %}
+      </div>
 
-  <hr>
+      <!-- Core details -->
+      <div class="row mb-2">
+        <div class="col-md-3"><strong>Monthly:</strong> ₱{{ cs.monthly_payment|floatformat:2|intcomma }}</div>
+        <div class="col-md-3"><strong>Duration:</strong> {{ cs.duration }} months</div>
+        <div class="col-md-3"><strong>Start Date:</strong> {{ cs.start_date }}</div>
+        <div class="col-md-3"><strong>Months Left:</strong> {{ cs.months_remaining }}</div>
+      </div>
+      <div class="row mb-2">
+        <div class="col-md-3"><strong>Paid:</strong> <span class="text-success">₱{{ cs.paid_balance|floatformat:2|intcomma }}</span></div>
+        <div class="col-md-3"><strong>Balance:</strong> <span class="text-danger">₱{{ cs.balance|floatformat:2|intcomma }}</span></div>
+        <div class="col-md-3">
+          <strong>Date Fully Paid:</strong>
+          {% if cs.date_fully_paid %}<span class="text-success">{{ cs.date_fully_paid }}</span>{% else %}—{% endif %}
+        </div>
+      </div>
 
-  <!-- Lot location -->
-  <div class="row mb-2">
-    <div class="col-md-2"><strong>Phase:</strong> {{ client_status.phase|default:"—" }}</div>
-    <div class="col-md-2"><strong>Block:</strong> {{ client_status.block|default:"—" }}</div>
-    <div class="col-md-2"><strong>Section:</strong> {{ client_status.section|default:"—" }}</div>
-    <div class="col-md-3"><strong>Lot No.:</strong> {{ client_status.lot_number|default:"—" }}</div>
-    <div class="col-md-3"><strong>P.A. No.:</strong> {{ client_status.pa_number|default:"—" }}</div>
-  </div>
- 
-  <!-- Column Level — THS / THTC only -->
-  {% if client_status.plan == "THS" or client_status.plan == "THTC" %}
-  <div class="row mb-2">
-    <div class="col-md-3">
-      <strong>Column Level:</strong>
-      {{ client_status.column_level|default:"—" }}
-    </div>
-  </div>
-  {% endif %}
- 
-  <!-- Extended lot tracking -->
-  <div class="row mb-2">
-    <div class="col-md-3"><strong>Contract No.:</strong> {{ client_status.contract_number|default:"—" }}</div>
-    <div class="col-md-3"><strong>Interment Date:</strong> {{ client_status.interment_date|default:"—" }}</div>
-    <div class="col-md-3"><strong>P.A. Date:</strong> {{ client_status.pa_date|default:"—" }}</div>
-  </div>
- 
-  <!-- Columbarium -->
-  {% if client_status.columbarium_type or client_status.tomb_number %}
-  <hr>
-  <h6 class="text-secondary mb-2">🏛 Columbarium</h6>
-  <div class="row mb-2">
-    <div class="col-md-3">
-      <strong>TCT A/R:</strong> {{ client_status.columbarium_type|default:"—" }}
-    </div>
-    <div class="col-md-3">
-      <strong>Level:</strong>
-      {% if client_status.columbarium_level %}Level {{ client_status.columbarium_level }}{% else %}—{% endif %}
-    </div>
-    <div class="col-md-3">
-      <strong>Tomb No.:</strong> {{ client_status.tomb_number|default:"—" }}
-    </div>
-  </div>
-  {% endif %}
+      <!-- Down payment -->
+      <div class="row mb-2">
+        <div class="col-md-3">
+          <strong>Down Payment:</strong>
+          {% if cs.down_payment %}₱{{ cs.down_payment|floatformat:2|intcomma }}{% else %}—{% endif %}
+        </div>
+        <div class="col-md-3">
+          <strong>Discount:</strong>
+          {% if cs.discount_percent %}{{ cs.discount_percent }}%{% else %}0%{% endif %}
+        </div>
+        <div class="col-md-3">
+          <strong>Eff. Down Payment:</strong>
+          {% if cs.effective_down_payment %}
+            <span class="text-success">₱{{ cs.effective_down_payment|floatformat:2|intcomma }}</span>
+          {% else %}—{% endif %}
+        </div>
+      </div>
 
-  <!-- Cancellation info -->
-  {% if client_status.is_cancelled %}
-  <div class="alert alert-danger mt-2 mb-0">
-    <strong>Cancelled on {{ client_status.cancellation_date }}:</strong>
-    {{ client_status.cancellation_reason|default:"No reason provided." }}
-  </div>
-  {% endif %}
+      <hr class="my-2">
 
+      <!-- Lot location -->
+      {% if cs.plan == "TCT A/R" %}
+      <div class="row mb-2">
+        <div class="col-md-3"><strong>TCT A/R:</strong> {{ cs.columbarium_type|default:"—" }}</div>
+        <div class="col-md-3"><strong>Level:</strong> {% if cs.columbarium_level %}Level {{ cs.columbarium_level }}{% else %}—{% endif %}</div>
+        <div class="col-md-3"><strong>Tomb No.:</strong> {{ cs.tomb_number|default:"—" }}</div>
+      </div>
+      {% else %}
+      <div class="row mb-2">
+        <div class="col-md-2"><strong>Phase:</strong> {{ cs.phase|default:"—" }}</div>
+        <div class="col-md-2"><strong>Block:</strong> {{ cs.block|default:"—" }}</div>
+        <div class="col-md-2"><strong>Section:</strong> {{ cs.section|default:"—" }}</div>
+        <div class="col-md-3"><strong>Lot No.:</strong> {{ cs.lot_number|default:"—" }}</div>
+        <div class="col-md-3"><strong>P.A. No.:</strong> {{ cs.pa_number|default:"—" }}</div>
+      </div>
+      {% if cs.plan == "THS" or cs.plan == "THTC" %}
+      <div class="row mb-2">
+        <div class="col-md-3"><strong>Column Level:</strong> {{ cs.column_level|default:"—" }}</div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="row mb-2">
+        <div class="col-md-3"><strong>Contract No.:</strong> {{ cs.contract_number|default:"—" }}</div>
+        <div class="col-md-3"><strong>Interment Date:</strong> {{ cs.interment_date|default:"—" }}</div>
+        <div class="col-md-3"><strong>P.A. Date:</strong> {{ cs.pa_date|default:"—" }}</div>
+      </div>
+
+      {% if cs.is_cancelled %}
+      <div class="alert alert-danger mt-2 mb-2 py-2">
+        <strong>Cancelled on {{ cs.cancellation_date }}:</strong>
+        {{ cs.cancellation_reason|default:"No reason provided." }}
+      </div>
+      {% endif %}
+
+      <!-- View Payments button -->
+      <div class="mt-2 no-print">
+        <a href="{% url 'payment-history' client.pk %}?plan={{ cs.pk }}"
+           class="btn btn-sm {% if cs.status and not cs.is_cancelled %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+          {% if cs.status and not cs.is_cancelled %}View &amp; Pay →{% else %}View Payment History →{% endif %}
+        </a>
+      </div>
+
+    </div>
+    {% endfor %}
   {% else %}
-  <p class="text-muted">No plan assigned yet. <a href="{% url 'plan' client.pk %}">Assign one →</a></p>
+    <p class="text-muted">No plan assigned yet. <a href="{% url 'plan' client.pk %}">Assign one →</a></p>
   {% endif %}
+
 </div></div>
 
 <!-- Action buttons -->
 <div class="d-flex gap-2 mb-4 no-print">
   <a href="{% url 'edit-details' client.pk %}" class="btn btn-warning">Edit Client</a>
-  {% if client_status and client_status.plan != "No Plan" %}
-  <a href="{% url 'payment-history' client.pk %}" class="btn btn-primary">View Payments</a>
-  {% endif %}
 </div>
 {% endblock %}
 
