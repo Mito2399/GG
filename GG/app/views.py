@@ -73,6 +73,19 @@ def _log_activity(user, action: str):
     if user.is_authenticated and not user.is_superuser and user.username != "admin":
         UserLog.objects.filter(user=user).update(activities=action)
 
+def _get_active_status(client):
+    """
+    Returns the active ClientStatus for a client.
+    Priority: active non-cancelled plan → most recent by pk.
+    """
+    return (
+        ClientStatus.objects
+        .filter(client=client, status=True, is_cancelled=False)
+        .exclude(plan="No Plan")
+        .order_by("-pk")
+        .first()
+    ) or ClientStatus.objects.filter(client=client).order_by("-pk").first()
+
 
 def _generate_payment_rows(client_status):
     """
@@ -262,10 +275,16 @@ def records_view(request):
 
 @login_required(login_url="login")
 def client_details_view(request, pk):
-    client        = get_object_or_404(ClientPersonalInfo, pk=pk)
-    client_status = ClientStatus.objects.filter(client=client).first()
+    client      = get_object_or_404(ClientPersonalInfo, pk=pk)
+    all_statuses = (
+        ClientStatus.objects
+        .filter(client=client)
+        .exclude(plan="No Plan")
+        .order_by("-pk")
+    )
     return render(request, "app/client-details.html", {
-        "client": client, "client_status": client_status,
+        "client":       client,
+        "all_statuses": all_statuses,
     })
 
 
@@ -313,57 +332,68 @@ def delete_client_view(request, pk):
 
 @login_required(login_url="login")
 def add_payment_view(request, pk):
-    client        = get_object_or_404(ClientPersonalInfo, pk=pk)
-    client_status = ClientStatus.objects.filter(client=client).first()
-    if client_status:
-        _generate_payment_rows(client_status)
+    client      = get_object_or_404(ClientPersonalInfo, pk=pk)
+    all_statuses = (
+        ClientStatus.objects
+        .filter(client=client)
+        .exclude(plan="No Plan")
+        .order_by("-pk")
+    )
+    for cs in all_statuses:
+        _generate_payment_rows(cs)
     return render(request, "app/add_payment.html", {
-        "client": client, "client_status": client_status,
+        "client":       client,
+        "all_statuses": all_statuses,
     })
 
 
 @login_required(login_url="login")
 def payment_history_view(request, pk):
-    client        = get_object_or_404(ClientPersonalInfo, pk=pk)
-    client_status = ClientStatus.objects.filter(client=client).first()
-
-    if not client_status or client_status.plan == "No Plan":
-        messages.info(request, "This client has no active plan assigned yet.")
+    client      = get_object_or_404(ClientPersonalInfo, pk=pk)
+    all_statuses = (
+        ClientStatus.objects
+        .filter(client=client)
+        .exclude(plan="No Plan")
+        .order_by("-pk")
+    )
+ 
+    if not all_statuses.exists():
+        messages.info(request, "This client has no plan assigned yet.")
         return redirect("add-payment", pk=pk)
-
-    _generate_payment_rows(client_status)
-
+ 
+    # ── POST: process a payment ───────────────────────────────────────────────
     if request.method == "POST":
         payment_id = request.POST.get("payment_id", "")
         pin        = request.POST.get("pin", "")
-
+ 
         if not _check_pin(request.user, pin):
             return JsonResponse({"success": False, "error": "Invalid PIN."})
-
-        payment = get_object_or_404(Payment, pk=payment_id, client_status=client_status)
-
+ 
+        # Find the payment tied to ANY of this client's plans
+        payment       = get_object_or_404(Payment, pk=payment_id, client_status__client=client)
+        client_status = payment.client_status
+ 
         if payment.is_paid:
             return JsonResponse({"success": False, "error": "This month is already paid."})
-
+ 
         with transaction.atomic():
             payment.is_paid   = True
             payment.date_paid = timezone.now()
             payment.save()
-
+ 
             client_status.paid_balance    += payment.amount
             client_status.balance         -= payment.amount
             client_status.months_remaining = client_status.payments.filter(is_paid=False).count()
             client_status.date_paid        = payment.date_paid
-
+ 
             if client_status.months_remaining == 0:
-                client_status.status = False
-                # FIX: auto-record the date the plan became fully paid
+                client_status.status       = False
                 client_status.date_fully_paid = datetime.date.today()
-
+ 
             client_status.save()
-
+ 
         _log_activity(request.user, "Add Payment")
-
+ 
         return JsonResponse({
             "success":          True,
             "date_paid":        localtime(payment.date_paid).strftime("%b %d, %Y %I:%M %p"),
@@ -371,10 +401,25 @@ def payment_history_view(request, pk):
             "balance":          str(client_status.balance),
             "months_remaining": client_status.months_remaining,
         })
-
+ 
+    # ── GET: select which plan to display ────────────────────────────────────
+    selected_pk = request.GET.get("plan")
+    if selected_pk:
+        try:
+            client_status = all_statuses.get(pk=selected_pk)
+        except ClientStatus.DoesNotExist:
+            client_status = _get_active_status(client) or all_statuses.first()
+    else:
+        client_status = _get_active_status(client) or all_statuses.first()
+ 
+    _generate_payment_rows(client_status)
     payments = client_status.payments.all()
+ 
     return render(request, "app/payment_history.html", {
-        "client": client, "client_status": client_status, "payments": payments,
+        "client":        client,
+        "client_status": client_status,
+        "all_statuses":  all_statuses,
+        "payments":      payments,
     })
 
 
