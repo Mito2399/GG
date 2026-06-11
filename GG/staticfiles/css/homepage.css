@@ -10,10 +10,16 @@ body {
 }
 
 .sidebar {
+  position: fixed;
+  top: 60px;                    /* sits below the topbar */
+  left: 0;
   width: 220px;
+  height: calc(100vh - 60px);
   background: #2f3640;
-  min-height: 100vh;
+  overflow-y: auto;
+  z-index: 100;
   padding-top: 20px;
+  flex-shrink: 0;
 }
 
 .sidebar .nav-link {
@@ -37,6 +43,8 @@ body {
 .content {
   flex: 1;
   padding: 30px;
+  margin-left: 220px;           /* push content right of the fixed sidebar */
+  min-height: calc(100vh - 60px);
 }
 
 .admin-box {
