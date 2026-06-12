@@ -41,6 +41,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "app.middleware.LoginRateLimitMiddleware",
     "app.middleware.BlockNonAdminMiddleware",
 ]
 
@@ -56,6 +57,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "app.context_processors.role_context",
             ],
         },
     },
@@ -99,4 +101,30 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, "app/static")]
 
 # ── App-specific ──────────────────────────────────────────────────────────────
 # Set ADMIN_PIN in your environment for production.
-ADMIN_PIN = os.environ.get("ADMIN_PIN", "0010")
+ADMIN_PIN = os.environ.get("ADMIN_PIN", "")   # No default — must be set via env var
+if not ADMIN_PIN:
+    raise RuntimeError(
+        "ADMIN_PIN environment variable is not set. "
+        "Run: setx ADMIN_PIN \"your-4-digit-pin\""
+    )
+
+# ── Backup ────────────────────────────────────────────────────────────────────
+ 
+# Local backup: GG/backups/ — inside the project for easy access
+# Override by setting the environment variable BACKUP_OFFLINE_DIR
+BACKUP_OFFLINE_DIR      = os.environ.get("BACKUP_OFFLINE_DIR", str(BASE_DIR / "backups"))
+ 
+# Cloud backup: Dropbox
+# IMPORTANT: NEVER hardcode the token here. Set it as an environment variable:
+#   Windows: setx DROPBOX_ACCESS_TOKEN "your-token"
+#   Then restart your terminal/server.
+DROPBOX_ACCESS_TOKEN    = os.environ.get("DROPBOX_ACCESS_TOKEN", "")
+DROPBOX_BACKUP_FOLDER   = "/GreenGardenBackups"
+ 
+BACKUP_COOLDOWN_MINUTES = 15    # min gap between auto-backups
+BACKUP_RETENTION_DAYS   = 90    # delete backups older than this
+
+# Auto-logout after 8 hours of inactivity (28800 seconds)
+SESSION_COOKIE_AGE     = 28800
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True   # also expire on browser close
+
