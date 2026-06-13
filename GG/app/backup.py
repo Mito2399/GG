@@ -319,17 +319,19 @@ def _send_email_backup(zip_bytes: bytes, filename: str) -> bool:
         logger.info("[Backup] Email sent → %s", to)
         return True
 
-    except smtplib.SMTPAuthenticationError:
+    except smtplib.SMTPAuthenticationError as exc:
         logger.error(
-            "[Backup] Email auth failed. "
-            "Make sure you're using an App Password, not your real password."
+            "[Backup] Email auth failed — wrong App Password or 2FA not enabled. %s", exc
         )
+        return False
+    except smtplib.SMTPConnectError as exc:
+        logger.error("[Backup] Email connection failed — check internet / firewall. %s", exc)
         return False
     except smtplib.SMTPException as exc:
         logger.error("[Backup] Email SMTP error: %s", exc)
         return False
     except Exception as exc:
-        logger.error("[Backup] Email backup failed: %s", exc)
+        logger.error("[Backup] Email backup failed (%s): %s", type(exc).__name__, exc)
         return False
 
 
