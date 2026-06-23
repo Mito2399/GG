@@ -57,7 +57,8 @@
     </li>
     <li class="nav-item">
       <a class="nav-link {% block nav_add_client %}{% endblock %}"
-         href="{% url 'add-client' %}">Add Client</a>
+         href="{% url 'add-client' %}"
+         onclick="return requireRole('general_staff', 'Only General Staff can add new clients.')">Add Client</a>
     </li>
     <li class="nav-item">
       <a class="nav-link {% block nav_records %}{% endblock %}"
