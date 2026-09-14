@@ -125,9 +125,13 @@
       </div>
     </div>
 
-    <!-- GROUP C: THTC — Phase, Block, Section, Column Level (unchanged) -->
+    <!-- GROUP C: THTC — Columbarium-only. Type (fixed), Phase, Block, Section, Column Level -->
     <div id="group-thtc" class="d-none">
       <div class="row g-3 mb-3">
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold text-info">Type</label>
+          <div class="form-control bg-light text-muted">Columbarium</div>
+        </div>
         <div class="col-md-2">
           <label class="form-label small fw-semibold">Phase</label>
           <input type="text" name="phase" class="form-control" placeholder="e.g. P-1" id="thtc-phase">
@@ -136,11 +140,17 @@
           <label class="form-label small fw-semibold">Block</label>
           <input type="text" name="block" class="form-control" placeholder="e.g. B-1" id="thtc-block">
         </div>
-        <div class="col-md-2">
-          <label class="form-label small fw-semibold">Section</label>
-          <input type="text" name="section" class="form-control" placeholder="e.g. S-A" id="thtc-section">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Section</label>
+          <select name="section" class="form-control" id="thtc-section">
+            <option value="">Select…</option>
+            <option value="St. Gabriel I">St. Gabriel I</option>
+            <option value="St. Gabriel II">St. Gabriel II</option>
+            <option value="St. Gabriel III">St. Gabriel III</option>
+            <option value="St. Rafael III">St. Rafael III</option>
+          </select>
         </div>
-        <div class="col-md-2">
+        <div class="col-md-3">
           <label class="form-label small fw-semibold text-primary">Column Level</label>
           {{ form.column_level }}
           {% if form.column_level.errors %}<div class="text-danger small mt-1">{{ form.column_level.errors.0 }}</div>{% endif %}
@@ -452,11 +462,41 @@ function applyPlanGroup(planValue) {
       if (!isActive) f.value = "";
     });
   });
+
+  if (groupKey === "ths") updateThsSectionOptions();
 }
+
+/* ── THS Section list depends on THS Type (Niche vs Columbarium) ─────────── */
+const THS_SECTIONS_BY_TYPE = {
+  "Niche":       ["St. Vincent", "St. John", "St. Luke", "St. Mathew", "St. Mark"],
+  "Columbarium": ["St. Paul - Love", "St. Paul - Hope", "St. Paul - Faith", "St. Paul - Justice"],
+};
+
+function updateThsSectionOptions() {
+  const typeSel    = document.getElementById("id_ths_type");
+  const sectionSel = document.getElementById("id_ths_section");
+  if (!typeSel || !sectionSel) return;
+
+  const allowed = THS_SECTIONS_BY_TYPE[typeSel.value] || [];
+  let currentStillValid = false;
+
+  Array.from(sectionSel.options).forEach(opt => {
+    if (!opt.value) return; // always keep the "Select…" placeholder visible
+    const show = allowed.includes(opt.value);
+    opt.hidden    = !show;
+    opt.disabled  = !show;
+    if (show && opt.value === sectionSel.value) currentStillValid = true;
+  });
+
+  if (!currentStillValid) sectionSel.value = "";
+}
+
+document.getElementById("id_ths_type")?.addEventListener("change", updateThsSectionOptions);
 
 const planSelect = document.getElementById("id_plan");
 applyPlanGroup(planSelect?.value || "");
 planSelect?.addEventListener("change", e => applyPlanGroup(e.target.value));
+updateThsSectionOptions();
 
 /* ── Cancel plan ─────────────────────────────────────────────────────────── */
 let cancelPlanPk = null;
