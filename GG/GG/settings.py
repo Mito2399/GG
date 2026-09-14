@@ -1,14 +1,19 @@
 from pathlib import Path
 import os
+import sys
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# ── BASE_DIR: writable data lives next to the real exe ─────────────────────
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+    # ── Bundled read-only resources (static files) live in the temp extraction folder ──
+    BUNDLE_DIR = Path(sys._MEIPASS)
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    BUNDLE_DIR = BASE_DIR
 
 # ── Security ──────────────────────────────────────────────────────────────────
 # Set DJANGO_SECRET_KEY in your environment for production.
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-change-me-before-deploying-to-production",
-)
+SECRET_KEY = "K7mQ2xLp9VtR4nZa8WcF1yHb6JdE3sUi"
 
 # Set DJANGO_DEBUG=False in your environment for production.
 # Old
@@ -95,8 +100,8 @@ USE_TZ        = True
 
 # ── Static / media ────────────────────────────────────────────────────────────
 STATIC_URL  = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [os.path.join(BASE_DIR, "app/static")]
+STATIC_ROOT = BUNDLE_DIR / "staticfiles"          # ← changed from BASE_DIR
+STATICFILES_DIRS = [os.path.join(BUNDLE_DIR, "app/static")]   # ← changed from BASE_DIR
 
 STORAGES = {
     "default": {
@@ -113,12 +118,7 @@ MEDIA_ROOT  = BASE_DIR / "media"
 
 
 # ── App-specific ──────────────────────────────────────────────────────────────
-ADMIN_PIN = os.environ.get("ADMIN_PIN", "") 
-if not ADMIN_PIN:
-    raise RuntimeError(
-        "ADMIN_PIN environment variable is not set. "
-        "Run: setx ADMIN_PIN \"your-4-digit-pin\""
-    )
+ADMIN_PIN = "0011"
 
 # ── Backup ────────────────────────────────────────────────────────────────────
 BACKUP_OFFLINE_DIR      = os.environ.get("BACKUP_OFFLINE_DIR", str(BASE_DIR / "backups"))
