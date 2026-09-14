@@ -136,12 +136,30 @@ class ClientStatus(models.Model):
         ("Niche",       "Niche"),
         ("Columbarium", "Columbarium"),
     ]
-    THS_SECTION_CHOICES = [
+    # Section options depend on THS Type — kept as separate lists so
+    # the template JS can filter the dropdown, but combined below so
+    # Django's ChoiceField/model validation accepts either set.
+    THS_NICHE_SECTIONS = [
         ("St. Vincent", "St. Vincent"),
         ("St. John",    "St. John"),
         ("St. Luke",    "St. Luke"),
         ("St. Mathew",  "St. Mathew"),
         ("St. Mark",    "St. Mark"),
+    ]
+    THS_COLUMBARIUM_SECTIONS = [
+        ("St. Paul - Love",    "St. Paul - Love"),
+        ("St. Paul - Hope",    "St. Paul - Hope"),
+        ("St. Paul - Faith",   "St. Paul - Faith"),
+        ("St. Paul - Justice", "St. Paul - Justice"),
+    ]
+    THS_SECTION_CHOICES = THS_NICHE_SECTIONS + THS_COLUMBARIUM_SECTIONS
+
+    # THTC is Columbarium-only; its Section list is separate from THS's.
+    THTC_SECTION_CHOICES = [
+        ("St. Gabriel I",   "St. Gabriel I"),
+        ("St. Gabriel II",  "St. Gabriel II"),
+        ("St. Gabriel III", "St. Gabriel III"),
+        ("St. Rafael III",  "St. Rafael III"),
     ]
     ths_type    = models.CharField(max_length=50, blank=True, null=True,
                       choices=THS_TYPE_CHOICES,
