@@ -19,6 +19,7 @@ from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 from collections import defaultdict
 from openpyxl.styles import Font, PatternFill, Alignment
+from decimal import Decimal
 
 # FIX: removed `from dateutil.relativedelta import relativedelta`
 # python-dateutil is not in Pipfile and causes ImportError on startup.
@@ -475,66 +476,82 @@ def add_payment_view(request, pk):
 
 @_require_role("Accounting Staff")
 def payment_history_view(request, pk):
-    client      = get_object_or_404(ClientPersonalInfo, pk=pk)
+    client = get_object_or_404(ClientPersonalInfo, pk=pk)
     all_statuses = (
-        ClientStatus.objects
-        .filter(client=client)
-        .exclude(plan="No Plan")
-        .order_by("-pk")
+        ClientStatus.objects.filter(client=client).exclude(plan="No Plan").order_by("-pk")
     )
-
     if not all_statuses.exists():
         messages.info(request, "This client has no plan assigned yet.")
         return redirect("add-payment", pk=pk)
 
-    # ── POST: process a payment ───────────────────────────────────────────────
+    # ── POST: record an arbitrary payment ────────────────────────────────
     if request.method == "POST":
         if not _check_write_role(request, "Accounting Staff"):
             return JsonResponse({"success": False, "error": "Access restricted. Only Accounting Staff can record payments."})
-        payment_id = request.POST.get("payment_id", "")
-        pin        = request.POST.get("pin", "")
 
-        if not _check_pin(request.user, pin):
+        client_status = get_object_or_404(
+            ClientStatus, pk=request.POST.get("client_status_id"), client=client
+        )
+
+        if not _check_pin(request.user, request.POST.get("pin", "")):
             return JsonResponse({"success": False, "error": "Invalid PIN."})
 
-        # Find the payment tied to ANY of this client's plans
-        payment       = get_object_or_404(Payment, pk=payment_id, client_status__client=client)
-        client_status = payment.client_status
+        if client_status.is_cancelled:
+            return JsonResponse({"success": False, "error": "This plan is cancelled."})
 
-        if payment.is_paid:
-            return JsonResponse({"success": False, "error": "This month is already paid."})
+        try:
+            amount = Decimal(request.POST.get("amount", "0"))
+        except Exception:
+            return JsonResponse({"success": False, "error": "Invalid amount."})
+
+        if amount <= 0:
+            return JsonResponse({"success": False, "error": "Amount must be greater than zero."})
+
+        note = request.POST.get("note", "").strip()
 
         with transaction.atomic():
-            payment.is_paid   = True
-            payment.date_paid = timezone.now()
-            payment.processed_by = request.user
-            payment.save()
+            payment = Payment.objects.create(
+                client_status=client_status,
+                amount=amount,
+                is_paid=True,
+                date_paid=timezone.now(),
+                processed_by=request.user,
+                note=note,
+            )
+            client_status.paid_balance += amount
+            client_status.balance = max(client_status.balance - amount, 0)
 
-            client_status.paid_balance    += payment.amount
-            client_status.balance         -= payment.amount
-            client_status.months_remaining = client_status.payments.filter(is_paid=False).count()
-            client_status.date_paid        = payment.date_paid
+            if client_status.monthly_payment:
+                # ceil division, just an estimate for display
+                client_status.months_remaining = int(
+                    -(-client_status.balance // client_status.monthly_payment)
+                )
 
-            if client_status.months_remaining == 0:
-                client_status.status       = False
+            if client_status.balance <= 0:
+                client_status.status = False
                 client_status.date_fully_paid = datetime.date.today()
 
             client_status.save()
 
         _log_activity(
             request.user, "Add Payment",
-            f"Client: {client.full_name} — {payment.month.strftime('%B %Y')} — ₱{payment.amount}"
+            f"Client: {client.full_name} — {client_status.plan} — ₱{amount}"
+            + (f" ({note})" if note else "")
         )
 
         return JsonResponse({
             "success":          True,
+            "payment_id":       payment.pk,
             "date_paid":        localtime(payment.date_paid).strftime("%b %d, %Y %I:%M %p"),
-            "paid_balance":     str(client_status.paid_balance),
-            "balance":          str(client_status.balance),
+            "amount":           f"{amount:,.2f}",
+            "note":             note,
+            "paid_balance":     f"{client_status.paid_balance:,.2f}",
+            "balance":          f"{client_status.balance:,.2f}",
             "months_remaining": client_status.months_remaining,
+            "is_completed":     not client_status.status,
         })
 
-    # ── GET: select which plan to display ────────────────────────────────────
+    # ── GET: show the log ──────────────────────────────────────────────────
     selected_pk = request.GET.get("plan")
     if selected_pk:
         try:
@@ -544,8 +561,7 @@ def payment_history_view(request, pk):
     else:
         client_status = _get_active_status(client) or all_statuses.first()
 
-    _generate_payment_rows(client_status)
-    payments = client_status.payments.all()
+    payments = client_status.payments.filter(is_paid=True).order_by("-date_paid")
 
     return render(request, "app/payment_history.html", {
         "client":        client,
@@ -584,18 +600,23 @@ def plan(request, pk):
             section          = d.get("section", "").strip() or None
             lot_number       = d.get("lot_number", "").strip() or None
             pa_number        = d.get("pa_number", "").strip() or None
-            # FIX: new tracking fields
             contract_number  = d.get("contract_number", "").strip() or None
             interment_date   = d.get("interment_date")
             pa_date          = d.get("pa_date")
-            # Columbarium / THS / THTC fields
+
+            # THTC (unchanged)
             column_level      = d.get("column_level", "").strip() or None
+
+            # THS (new, separate fields)
+            ths_type          = d.get("ths_type", "").strip() or None
+            ths_section       = d.get("ths_section", "").strip() or None
+            ths_column        = d.get("ths_column", "").strip() or None
+
+            # Columbarium (separate plan — unchanged)
             columbarium_type  = d.get("columbarium_type", "").strip() or None
             columbarium_level = d.get("columbarium_level") or None
             tomb_number       = d.get("tomb_number", "").strip() or None
 
-            # FIX: only block if there is an ACTIVE, non-cancelled plan.
-            # Cancelled or completed plans do not block a new assignment.
             blocking = plans.exclude(plan="No Plan").filter(
                 is_cancelled=False, status=True
             )
@@ -634,6 +655,9 @@ def plan(request, pk):
                 cs.interment_date   = interment_date
                 cs.pa_date          = pa_date
                 cs.column_level      = column_level
+                cs.ths_type           = ths_type
+                cs.ths_section        = ths_section
+                cs.ths_column         = ths_column
                 cs.columbarium_type  = columbarium_type
                 cs.columbarium_level = columbarium_level
                 cs.tomb_number       = tomb_number
@@ -854,20 +878,28 @@ def bookings_view(request):
             return redirect("bookings")
 
     # Build booked slots dict for calendar JS
+        # Build booked slots dict for calendar JS
     active_bookings = (
         Booking.objects
         .filter(status="Active")
-        .values("booking_date", "booking_time")
+        .values("booking_date", "booking_time", "event_type")
     )
     booked_slots: dict = defaultdict(list)
+    day_events: dict = defaultdict(set)
     for b in active_bookings:
         date_str = b["booking_date"].strftime("%Y-%m-%d")
         booked_slots[date_str].append(b["booking_time"])
+        day_events[date_str].add(b["event_type"])
+
+    # Shows which event type(s) — Viewing / Interment — fall on each day,
+    # same idea as the interment marker on the full Calendar page.
+    day_events_json = {d: sorted(types) for d, types in day_events.items()}
 
     return render(request, "app/bookings.html", {
         "form":              form,
         "bookings":          bookings,
         "booked_slots_json": json.dumps(dict(booked_slots)),
+        "day_events_json":   json.dumps(day_events_json),
     })
 
 
