@@ -1,35 +1,38 @@
+
+
+Plan · HTML
 {% extends 'app/base.html' %}
 {% load humanize %}
 {% block title %}Plan Management — Green Garden{% endblock %}
 {% block nav_records %}active{% endblock %}
-
+ 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4 no-print">
   <h4 class="mb-0">Plan Management</h4>
   <a href="{% url 'records' %}" class="btn btn-secondary btn-sm">← Back to Records</a>
 </div>
-
+ 
 <div class="card shadow-sm border-0 mb-4"><div class="card-body">
   <h6 class="text-muted mb-1">Client</h6>
   <h5 class="mb-0">{{ client.full_name }}</h5>
   <small class="text-muted">ID #{{ client.pk }} · {{ client.client_contact_number }}</small>
 </div></div>
-
+ 
 {% if form.non_field_errors %}
 <div class="alert alert-danger no-print">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
 {% endif %}
-
+ 
 <!-- ── Assign Plan Form ──────────────────────────────────────────────────── -->
 <div class="card shadow-sm border-0 mb-4 no-print"><div class="card-body">
-
+ 
   <div class="d-flex align-items-center mb-3 gap-2">
     <h5 class="mb-0">Assign Lot Plan</h5>
     <span class="badge bg-primary" id="plan-mode-badge">Standard</span>
   </div>
-
+ 
   <form method="POST" action="{% url 'plan' client.pk %}">
     {% csrf_token %}
-
+ 
     <!-- Row 1: Plan + Payment + Duration -->
     <div class="row g-3 mb-3">
       <div class="col-md-3">
@@ -48,7 +51,7 @@
         {% if form.duration.errors %}<div class="text-danger small mt-1">{{ form.duration.errors.0 }}</div>{% endif %}
       </div>
     </div>
-
+ 
     <!-- Row 2: Down payment + discount + preview -->
     <div class="row g-3 mb-3">
       <div class="col-md-3">
@@ -68,11 +71,11 @@
         </div>
       </div>
     </div>
-
+ 
     <hr class="my-3">
-
+ 
     <!-- ── DYNAMIC location fields ──────────────────────────────────────── -->
-
+ 
     <!-- GROUP A: Standard lots — Phase, Block, Section, Lot No., P.A. No. -->
     <div id="group-standard">
       <div class="row g-3 mb-3">
@@ -98,7 +101,7 @@
         </div>
       </div>
     </div>
-
+ 
     <!-- GROUP B: THS — THS Type, Section, Level, Column (dedicated layout) -->
     <div id="group-ths" class="d-none">
       <div class="row g-3 mb-3">
@@ -124,21 +127,13 @@
         </div>
       </div>
     </div>
-
-    <!-- GROUP C: THTC — Columbarium-only. Type (fixed), Phase, Block, Section, Column Level -->
+ 
+    <!-- GROUP C: THTC — Columbarium-only. Type (fixed), Section, Level, Column -->
     <div id="group-thtc" class="d-none">
       <div class="row g-3 mb-3">
-        <div class="col-md-2">
+        <div class="col-md-3">
           <label class="form-label small fw-semibold text-info">Type</label>
           <div class="form-control bg-light text-muted">Columbarium</div>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small fw-semibold">Phase</label>
-          <input type="text" name="phase" class="form-control" placeholder="e.g. P-1" id="thtc-phase">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small fw-semibold">Block</label>
-          <input type="text" name="block" class="form-control" placeholder="e.g. B-1" id="thtc-block">
         </div>
         <div class="col-md-3">
           <label class="form-label small fw-semibold text-info">Section</label>
@@ -151,13 +146,18 @@
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label small fw-semibold text-primary">Column Level</label>
+          <label class="form-label small fw-semibold text-primary">Level</label>
           {{ form.column_level }}
           {% if form.column_level.errors %}<div class="text-danger small mt-1">{{ form.column_level.errors.0 }}</div>{% endif %}
         </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-primary">Column</label>
+          <input type="text" name="ths_column" class="form-control"
+                 placeholder="e.g. B-1" id="thtc-column" data-uppercase="true">
+        </div>
       </div>
     </div>
-
+ 
     <!-- GROUP D: TCT A/R — Type, Phase, Block, Section, Level, Tomb Number -->
     <div id="group-columbarium" class="d-none">
       <div class="row g-3 mb-3">
@@ -191,7 +191,7 @@
         </div>
       </div>
     </div>
-
+ 
     <!-- Row: Extended tracking — always visible -->
     <div class="row g-3 mb-3">
       <div class="col-md-4">
@@ -207,7 +207,7 @@
         {{ form.pa_date }}
       </div>
     </div>
-
+ 
     <div class="mt-2">
       <button type="submit"
               class="btn btn-success px-4"
@@ -217,7 +217,7 @@
     </div>
   </form>
 </div></div>
-
+ 
 <!-- ── Plan History Table ────────────────────────────────────────────────── -->
 <div class="card shadow-sm border-0 mb-4"><div class="card-body p-0">
   <div class="px-3 py-2 border-bottom">
@@ -270,7 +270,7 @@
           {% else %}<span class="text-muted">—</span>{% endif %}
         </td>
         <td>{{ data.duration }} mo.</td>
-
+ 
         {% if data.plan == "TCT A/R" %}
           <td>{{ data.phase|default:"—" }}</td>
           <td>{{ data.block|default:"—" }}</td>
@@ -297,36 +297,35 @@
           <td>{{ data.ths_type|default:"—" }}</td>
           <td>{{ data.ths_section|default:"—" }}</td>
           <td>{{ data.ths_column|default:"—" }}</td>
+        {% elif data.plan == "THTC" %}
+          <td><span class="text-muted">—</span></td>
+          <td><span class="text-muted">—</span></td>
+          <td>{{ data.section|default:"—" }}</td>
+          <td><span class="text-muted">—</span></td>
+          <td>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+              {{ data.column_level|default:"—" }}
+            </span>
+          </td>
+          <td><span class="text-muted">—</span></td>
+          <td><span class="text-muted">—</span></td>
+          <td>{{ data.ths_column|default:"—" }}</td>
         {% else %}
           <td>{{ data.phase|default:"—" }}</td>
           <td>{{ data.block|default:"—" }}</td>
           <td>{{ data.section|default:"—" }}</td>
-          <td>
-            {% if data.plan == "THTC" %}
-              <span class="text-muted small">—</span>
-            {% else %}
-              {{ data.lot_number|default:"—" }}
-            {% endif %}
-          </td>
-          <td>
-            {% if data.plan == "THTC" %}
-              <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                {{ data.column_level|default:"—" }}
-              </span>
-            {% else %}
-              <span class="text-muted">—</span>
-            {% endif %}
-          </td>
+          <td>{{ data.lot_number|default:"—" }}</td>
+          <td><span class="text-muted">—</span></td>
           <td><span class="text-muted">—</span></td>
           <td><span class="text-muted">—</span></td>
           <td><span class="text-muted">—</span></td>
         {% endif %}
-
+ 
         <td>{{ data.pa_number|default:"—" }}</td>
         <td>{{ data.contract_number|default:"—" }}</td>
         <td>{{ data.interment_date|default:"—" }}</td>
         <td>{{ data.pa_date|default:"—" }}</td>
-
+ 
         {% if data.plan == "TCT A/R" %}
           <td>{{ data.columbarium_type|default:"—" }}</td>
           <td>{% if data.columbarium_level %}Level {{ data.columbarium_level }}{% else %}—{% endif %}</td>
@@ -336,7 +335,7 @@
           <td><span class="text-muted">—</span></td>
           <td><span class="text-muted">—</span></td>
         {% endif %}
-
+ 
         <td class="text-center" id="plan-status-{{ data.pk }}">
           {% if data.is_cancelled %}
             <span class="badge bg-danger">Cancelled</span>
@@ -367,8 +366,8 @@
   </div>
 </div></div>
 {% endblock %}
-
-
+ 
+ 
 {% block modals %}
 <!-- CANCEL PLAN MODAL -->
 <div class="modal fade" id="cancelPlanModal" tabindex="-1" aria-hidden="true">
@@ -400,8 +399,8 @@
 </div>
 </div>
 {% endblock %}
-
-
+ 
+ 
 {% block extra_js %}
 <script>
 /* ── Auto-uppercase for location fields ────────────────────────────────── */
@@ -413,7 +412,7 @@ document.querySelectorAll('[data-uppercase]').forEach(function (input) {
     this.setSelectionRange(start, end);
   });
 });
-
+ 
 /* ── Effective down payment preview ──────────────────────────────────────── */
 function updateEffectiveDP() {
   const dp   = parseFloat(document.getElementById("id_down_payment")?.value) || 0;
@@ -425,35 +424,35 @@ function updateEffectiveDP() {
 document.getElementById("id_down_payment")?.addEventListener("input",  updateEffectiveDP);
 document.getElementById("id_discount_percent")?.addEventListener("change", updateEffectiveDP);
 updateEffectiveDP();
-
+ 
 /* ── Dynamic location group ──────────────────────────────────────────────── */
 const TYPE_TO_GROUP = {
   "THS":      "ths",
   "THTC":     "thtc",
   "TCT A/R":  "columbarium",
 };
-
+ 
 const BADGE = {
   standard:    { label: "Standard",    cls: "bg-primary" },
   ths:         { label: "THS",         cls: "bg-info text-dark" },
   thtc:        { label: "THTC",        cls: "bg-warning text-dark" },
   columbarium: { label: "TCT A/R",     cls: "bg-secondary" },
 };
-
+ 
 const GROUPS = {
   standard:    document.getElementById("group-standard"),
   ths:         document.getElementById("group-ths"),
   thtc:        document.getElementById("group-thtc"),
   columbarium: document.getElementById("group-columbarium"),
 };
-
+ 
 function applyPlanGroup(planValue) {
   const groupKey = TYPE_TO_GROUP[planValue] || "standard";
-
+ 
   const badge = document.getElementById("plan-mode-badge");
   badge.textContent = BADGE[groupKey].label;
   badge.className   = "badge " + BADGE[groupKey].cls;
-
+ 
   Object.entries(GROUPS).forEach(([key, el]) => {
     const isActive = key === groupKey;
     el.classList.toggle("d-none", !isActive);
@@ -462,24 +461,24 @@ function applyPlanGroup(planValue) {
       if (!isActive) f.value = "";
     });
   });
-
+ 
   if (groupKey === "ths") updateThsSectionOptions();
 }
-
+ 
 /* ── THS Section list depends on THS Type (Niche vs Columbarium) ─────────── */
 const THS_SECTIONS_BY_TYPE = {
   "Niche":       ["St. Vincent", "St. John", "St. Luke", "St. Mathew", "St. Mark"],
   "Columbarium": ["St. Paul - Love", "St. Paul - Hope", "St. Paul - Faith", "St. Paul - Justice"],
 };
-
+ 
 function updateThsSectionOptions() {
   const typeSel    = document.getElementById("id_ths_type");
   const sectionSel = document.getElementById("id_ths_section");
   if (!typeSel || !sectionSel) return;
-
+ 
   const allowed = THS_SECTIONS_BY_TYPE[typeSel.value] || [];
   let currentStillValid = false;
-
+ 
   Array.from(sectionSel.options).forEach(opt => {
     if (!opt.value) return; // always keep the "Select…" placeholder visible
     const show = allowed.includes(opt.value);
@@ -487,21 +486,21 @@ function updateThsSectionOptions() {
     opt.disabled  = !show;
     if (show && opt.value === sectionSel.value) currentStillValid = true;
   });
-
+ 
   if (!currentStillValid) sectionSel.value = "";
 }
-
+ 
 document.getElementById("id_ths_type")?.addEventListener("change", updateThsSectionOptions);
-
+ 
 const planSelect = document.getElementById("id_plan");
 applyPlanGroup(planSelect?.value || "");
 planSelect?.addEventListener("change", e => applyPlanGroup(e.target.value));
 updateThsSectionOptions();
-
+ 
 /* ── Cancel plan ─────────────────────────────────────────────────────────── */
 let cancelPlanPk = null;
 const cancelPlanModal = new bootstrap.Modal(document.getElementById("cancelPlanModal"));
-
+ 
 document.querySelectorAll(".cancel-plan-btn").forEach(btn => {
   btn.addEventListener("click", function () {
     cancelPlanPk = this.dataset.pk;
@@ -515,23 +514,23 @@ document.querySelectorAll(".cancel-plan-btn").forEach(btn => {
     cancelPlanModal.show();
   });
 });
-
+ 
 document.getElementById("confirmCancelPlanBtn").addEventListener("click", function () {
   if (!requireRole('accounting_staff', 'Only Accounting Staff can cancel plans.')) return;
   const pin    = document.getElementById("cancelPlanPinInput").value;
   const reason = document.getElementById("cancelPlanReason").value;
   const errEl  = document.getElementById("cancelPlanPinError");
-
+ 
   if (!pin) {
     errEl.textContent = "Please enter your PIN.";
     errEl.classList.remove("d-none");
     return;
   }
-
+ 
   const btn = this;
   btn.disabled    = true;
   btn.textContent = "Cancelling…";
-
+ 
   fetch(`/cancel-plan/${cancelPlanPk}/`, {
     method: "POST",
     headers: {
