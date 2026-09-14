@@ -82,7 +82,7 @@ class ClientStatus(models.Model):
         ("Grand estate",    "Grand estate"),
         ("THS",             "THS"),
         ("THTC",            "THTC"),
-        ("Columbarium",     "Columbarium"),
+        ("TCT A/R",         "TCT A/R"),
     ]
     DURATION_CHOICES = [
         (6,  "6 Months"),
@@ -127,14 +127,33 @@ class ClientStatus(models.Model):
     )
     pa_date          = models.DateField(blank=True, null=True)
 
-    # ── Column Level (THS / THTC lots) ───────────────────────────────────
+    # ── Column Level (shared by THTC / TCT A/R lots) ──────────────────────
     column_level = models.CharField(max_length=200, blank=True, null=True,
-                       help_text="Column Level for THS/THTC lots.")
+                       help_text="Column/level value for THTC and TCT A/R lots.")
 
-    # ── Columbarium ───────────────────────────────────────────────────────
+    # ── THS-specific fields (THS has its own dedicated layout) ────────────
+    THS_TYPE_CHOICES = [
+        ("Niche",       "Niche"),
+        ("Columbarium", "Columbarium"),
+    ]
+    THS_SECTION_CHOICES = [
+        ("St. Vincent", "St. Vincent"),
+        ("St. John",    "St. John"),
+        ("St. Luke",    "St. Luke"),
+        ("St. Mathew",  "St. Mathew"),
+        ("St. Mark",    "St. Mark"),
+    ]
+    ths_type    = models.CharField(max_length=50, blank=True, null=True,
+                      choices=THS_TYPE_CHOICES,
+                      help_text="THS classification — Niche or Columbarium.")
+    ths_section = models.CharField(max_length=50, blank=True, null=True,
+                      choices=THS_SECTION_CHOICES)
+    ths_column  = models.CharField(max_length=200, blank=True, null=True)
+
+    # ── TCT A/R ─────────────────────────────────────────────────────────
     COLUMBARIUM_TYPE_CHOICES = [
-        ("TCT A/R Condo Niche 1", "TCT A/R Condo Niche 1"),
-        ("TCT A/R Condo Niche 2", "TCT A/R Condo Niche 2"),
+        ("TCT A/R Niche 1", "TCT A/R Niche 1"),
+        ("TCT A/R Niche 2", "TCT A/R Niche 2"),
     ]
     COLUMBARIUM_LEVEL_CHOICES = [
         (1, "Level 1"),
@@ -171,10 +190,11 @@ class Payment(models.Model):
         on_delete=models.CASCADE,
         related_name="payments",
     )
-    month     = models.DateField()
+    month     = models.DateField(blank=True, null=True)
     amount    = models.DecimalField(max_digits=20, decimal_places=2)
     is_paid   = models.BooleanField(default=False)
     date_paid = models.DateTimeField(blank=True, null=True)
+    note      = models.CharField(max_length=500, blank=True, default="")
 
     processed_by = models.ForeignKey(
         User,
@@ -188,8 +208,7 @@ class Payment(models.Model):
 
     def __str__(self):
         status = "Paid" if self.is_paid else "Unpaid"
-        return f"{self.client_status.client.full_name} – {self.month.strftime('%B %Y')} – {status}"
-
+        return f"{self.client_status.client.full_name} – {status}"
 
 class Booking(models.Model):
     EVENT_CHOICES = [
@@ -283,6 +302,7 @@ class UserLog(models.Model):
 
     def __str__(self):
         return self.full_name
+
 
 class ActivityLog(models.Model):
     ACTION_CHOICES = [
