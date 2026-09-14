@@ -449,7 +449,6 @@ class EmployeeUpdateForm(forms.Form):
 class PlanForm(forms.Form):
     PLAN_CHOICES = [
         ("", "Select Plan"),
-        # Standard lots
         ("Lawn lot",        "Lawn lot"),
         ("Garden lot",      "Garden lot"),
         ("Junior court",    "Junior court"),
@@ -457,10 +456,9 @@ class PlanForm(forms.Form):
         ("Senior court",    "Senior court"),
         ("Family estate",   "Family estate"),
         ("Grand estate",    "Grand estate"),
-        # Special types
         ("THS",             "THS"),
         ("THTC",            "THTC"),
-        ("Columbarium",     "Columbarium"),
+        ("TCT A/R",         "TCT A/R"),
     ]
     DURATION_CHOICES = [
         ("", "Select Duration"),
@@ -514,44 +512,65 @@ class PlanForm(forms.Form):
     # ── Standard lot location fields ──────────────────────────────────────
     phase = forms.CharField(
         max_length=200, required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. P-1", "data-uppercase": "true",}),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. P-1", "data-uppercase": "true"}),
     )
     block = forms.CharField(
         max_length=200, required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. B-1", "data-uppercase": "true",}),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. B-1", "data-uppercase": "true"}),
     )
     section = forms.CharField(
         max_length=200, required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. S-A", "data-uppercase": "true",}),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. S-A", "data-uppercase": "true"}),
     )
     lot_number = forms.CharField(
         max_length=200, required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. L-12", "data-uppercase": "true",}),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. L-12", "data-uppercase": "true"}),
     )
     pa_number = forms.CharField(
         max_length=200, required=False,
-        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. 00123", "data-uppercase": "true",}),
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. 00123", "data-uppercase": "true"}),
     )
 
-    # ── THS / THTC ────────────────────────────────────────────────────────
+    # ── THTC (kept as-is: Phase/Block/Section + Column Level) ─────────────
     column_level = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={
-            "class": "form-control", "placeholder": "e.g. A, B, C","data-uppercase": "true",}),
-        label="Column Level",
+            "class": "form-control", "placeholder": "e.g. A, B, C", "data-uppercase": "true"}),
+        label="Level",
     )
 
-    # ── Columbarium (TCT A/R) ─────────────────────────────────────────────
+    # ── THS (new, separate layout) ─────────────────────────────────────────
+    ths_type = forms.ChoiceField(
+        choices=[("", "Select…")] + ClientStatus.THS_TYPE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-control"}),
+        label="THS Type",
+    )
+    ths_section = forms.ChoiceField(
+        choices=[("", "Select…")] + ClientStatus.THS_SECTION_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-control"}),
+        label="Section",
+    )
+    ths_column = forms.CharField(
+        max_length=200, required=False,
+        widget=forms.TextInput(attrs={
+            "class": "form-control", "placeholder": "e.g. B-1", "data-uppercase": "true"}),
+        label="Column",
+    )
+
+    # ── Columbarium (separate plan type — unchanged) ───────────────────────
     columbarium_type = forms.ChoiceField(
         choices=[
-            ("",                      "Select Type"),
-            ("TCT A/R Condo Niche 1", "TCT A/R Condo Niche 1"),
-            ("TCT A/R Condo Niche 2", "TCT A/R Condo Niche 2"),
+            ("",                "Select Type"),
+            ("TCT A/R Niche 1", "TCT A/R Niche 1"),
+            ("TCT A/R Niche 2", "TCT A/R Niche 2"),
         ],
         required=False,
         widget=forms.Select(attrs={"class": "form-control"}),
         label="TCT A/R Type",
     )
+    
     columbarium_level = forms.ChoiceField(
         choices=[
             ("", "Select Level"),
@@ -567,7 +586,7 @@ class PlanForm(forms.Form):
     tomb_number = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={
-            "class": "form-control", "placeholder": "Tomb Number", "data-uppercase": "true",}),
+            "class": "form-control", "placeholder": "Tomb Number", "data-uppercase": "true"}),
         label="Tomb Number",
     )
 
@@ -575,7 +594,7 @@ class PlanForm(forms.Form):
     contract_number = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={
-            "class": "form-control", "placeholder": "Contract / P.A. number", "data-uppercase": "true",}),
+            "class": "form-control", "placeholder": "Contract / P.A. number", "data-uppercase": "true"}),
     )
     interment_date = forms.DateField(
         required=False,
@@ -628,12 +647,12 @@ class PlanForm(forms.Form):
         if not v:
             raise forms.ValidationError("Please select a duration.")
         return int(v)
-    
+
     _UPPERCASE_FIELDS = [
         "phase", "block", "section", "lot_number", "pa_number",
-        "contract_number", "column_level", "tomb_number",
+        "contract_number", "column_level", "tomb_number", "ths_column",
     ]
- 
+
     def clean(self):
         cleaned_data = super().clean()
         for field in self._UPPERCASE_FIELDS:
