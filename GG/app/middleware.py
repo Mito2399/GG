@@ -82,4 +82,4 @@ class BlockNonAdminMiddleware:
         if request.path.startswith("/admin/"):
             if not request.user.is_authenticated or not request.user.is_superuser:
                 return redirect("login")
-        return self.get_response(request)
+        return self.get_response(request
