@@ -600,19 +600,21 @@ def plan(request, pk):
             section          = d.get("section", "").strip() or None
             lot_number       = d.get("lot_number", "").strip() or None
             pa_number        = d.get("pa_number", "").strip() or None
-            contract_number  = d.get("contract_number", "").strip() or None
+            la_number        = d.get("la_number", "").strip() or None
             interment_date   = d.get("interment_date")
             pa_date          = d.get("pa_date")
 
-            # THTC (unchanged)
+            # Level (shared across THS / THTC / TCT A/R)
             column_level      = d.get("column_level", "").strip() or None
 
-            # THS (new, separate fields)
+            # THS-specific
             ths_type          = d.get("ths_type", "").strip() or None
             ths_section       = d.get("ths_section", "").strip() or None
+
+            # Column — distinct from Level, shared across THS / THTC / TCT A/R
             ths_column        = d.get("ths_column", "").strip() or None
 
-            # Columbarium (separate plan — unchanged)
+            # TCT A/R (Columbarium)
             columbarium_type  = d.get("columbarium_type", "").strip() or None
             columbarium_level = d.get("columbarium_level") or None
             tomb_number       = d.get("tomb_number", "").strip() or None
@@ -651,13 +653,13 @@ def plan(request, pk):
                 cs.section          = section
                 cs.lot_number       = lot_number
                 cs.pa_number        = pa_number
-                cs.contract_number  = contract_number
+                cs.la_number        = la_number
                 cs.interment_date   = interment_date
                 cs.pa_date          = pa_date
                 cs.column_level      = column_level
-                cs.ths_type           = ths_type
-                cs.ths_section        = ths_section
-                cs.ths_column         = ths_column
+                cs.ths_type          = ths_type
+                cs.ths_section       = ths_section
+                cs.ths_column        = ths_column
                 cs.columbarium_type  = columbarium_type
                 cs.columbarium_level = columbarium_level
                 cs.tomb_number       = tomb_number
@@ -1541,9 +1543,10 @@ def export_lots_excel(request):
     ws.append([])
 
     _xl_header_row(ws, [
-        "PHASE", "BLOCK", "SECTION", "LOT NUMBER", "LOT TYPE",
-        "NAME OF BUYER", "DATE OF SALES", "DATE REGISTERED",
-        "C.O NUMBER", "PA NUMBER", "MONTHLY", "BALANCE", "STATUS",
+        "PA NUMBER", "LA NUMBER", "NAME OF BUYER", "LOT TYPE",
+        "PHASE", "BLOCK", "SECTION", "LOT NUMBER",
+        "C.O NUMBER", "DATE OF SALES", "DATE REGISTERED",
+        "MONTHLY", "BALANCE", "STATUS",
     ])
 
     for lot in lots:
@@ -1552,16 +1555,17 @@ def export_lots_excel(request):
             else ("Active" if lot.status else "Completed")
         )
         ws.append([
+            lot.pa_number or "—",
+            lot.la_number or "—",
+            lot.client.full_name,
+            lot.plan,
             lot.phase or "—",
             lot.block or "—",
-            lot.section or "—",
+            lot.section or lot.ths_section or "—",
             lot.lot_number or "—",
-            lot.plan,
-            lot.client.full_name,
+            lot.contract_number or "—",
             lot.start_date.strftime("%B %d, %Y") if lot.start_date else "—",
             lot.pa_date.strftime("%B %d, %Y") if lot.pa_date else "—",
-            lot.contract_number or "—",
-            lot.pa_number or "—",
             float(lot.monthly_payment),
             float(lot.balance),
             status,
