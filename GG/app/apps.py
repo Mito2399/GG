@@ -103,4 +103,4 @@ class AppAppConfig(AppConfig):
         in_production   = "runserver" not in sys.argv   # waitress / gunicorn
 
         if in_dev_worker or in_production:
-            _start_daily_scheduler()
+            _start_daily_scheduler(
