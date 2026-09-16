@@ -41,7 +41,14 @@ class ClientPersonalInfo(models.Model):
             ("GSIS ID",          "GSIS ID"),
             ("UMID",             "UMID"),
             ("Postal ID",        "Postal ID"),
+            ("Other",            "Other"),
         ],
+    )
+
+    # ── Free-text field used only when client_id_type == "Other" ──────────
+    client_id_type_other = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Specify ID type when 'Other' is selected.",
     )
 
     client_id_number    = models.CharField(max_length=20)
@@ -52,6 +59,13 @@ class ClientPersonalInfo(models.Model):
     def full_name(self):
         middle = f" {self.client_middle_name}" if self.client_middle_name else ""
         return f"{self.client_first_name}{middle} {self.client_last_name}".strip()
+
+    @property
+    def display_id_type(self):
+        """Returns the effective ID type — custom text when 'Other'."""
+        if self.client_id_type == "Other" and self.client_id_type_other:
+            return self.client_id_type_other
+        return self.client_id_type
 
     def __str__(self):
         return self.full_name
@@ -98,7 +112,6 @@ class ClientStatus(models.Model):
     duration         = models.IntegerField(choices=DURATION_CHOICES)
     down_payment     = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
 
-    # ── discount on the down payment ────────────────────────────────
     discount_percent = models.DecimalField(
         max_digits=5, decimal_places=2, default=0,
         help_text="Percentage discount on the down payment (0 = no discount).",
@@ -111,14 +124,15 @@ class ClientStatus(models.Model):
     date_paid        = models.DateTimeField(blank=True, null=True)
     status           = models.BooleanField(default=True)
 
-    # ── Lot location fields ───────────────────────────────────────────────
     phase      = models.CharField(max_length=200, blank=True, null=True)
     block      = models.CharField(max_length=200, blank=True, null=True)
     section    = models.CharField(max_length=200, blank=True, null=True)
     lot_number = models.CharField(max_length=200, blank=True, null=True)
     pa_number  = models.CharField(max_length=200, blank=True, null=True)
 
-    # ── extended lot tracking ────────────────────────────────────────
+    la_number  = models.CharField(max_length=200, blank=True, null=True,
+                     help_text="Used instead of P.A. Number for TCT A/R lots.")
+
     contract_number  = models.CharField(max_length=200, blank=True, null=True)
     interment_date   = models.DateField(blank=True, null=True)
     date_fully_paid  = models.DateField(
@@ -127,18 +141,13 @@ class ClientStatus(models.Model):
     )
     pa_date          = models.DateField(blank=True, null=True)
 
-    # ── Column Level (shared by THTC / TCT A/R lots) ──────────────────────
     column_level = models.CharField(max_length=200, blank=True, null=True,
                        help_text="Column/level value for THTC and TCT A/R lots.")
 
-    # ── THS-specific fields (THS has its own dedicated layout) ────────────
     THS_TYPE_CHOICES = [
         ("Niche",       "Niche"),
         ("Columbarium", "Columbarium"),
     ]
-    # Section options depend on THS Type — kept as separate lists so
-    # the template JS can filter the dropdown, but combined below so
-    # Django's ChoiceField/model validation accepts either set.
     THS_NICHE_SECTIONS = [
         ("St. Vincent", "St. Vincent"),
         ("St. John",    "St. John"),
@@ -154,7 +163,6 @@ class ClientStatus(models.Model):
     ]
     THS_SECTION_CHOICES = THS_NICHE_SECTIONS + THS_COLUMBARIUM_SECTIONS
 
-    # THTC is Columbarium-only; its Section list is separate from THS's.
     THTC_SECTION_CHOICES = [
         ("St. Gabriel I",   "St. Gabriel I"),
         ("St. Gabriel II",  "St. Gabriel II"),
@@ -168,7 +176,6 @@ class ClientStatus(models.Model):
                       choices=THS_SECTION_CHOICES)
     ths_column  = models.CharField(max_length=200, blank=True, null=True)
 
-    # ── TCT A/R ─────────────────────────────────────────────────────────
     COLUMBARIUM_TYPE_CHOICES = [
         ("TCT A/R Niche 1", "TCT A/R Niche 1"),
         ("TCT A/R Niche 2", "TCT A/R Niche 2"),
@@ -185,15 +192,12 @@ class ClientStatus(models.Model):
                             choices=COLUMBARIUM_LEVEL_CHOICES)
     tomb_number       = models.CharField(max_length=200, blank=True, null=True)
 
-    # ── cancellation ─────────────────────────────────────────────────
     is_cancelled        = models.BooleanField(default=False)
     cancellation_reason = models.TextField(blank=True, null=True)
     cancellation_date   = models.DateField(blank=True, null=True)
 
-    # ── Computed property: discounted down payment ────────────────────────
     @property
     def effective_down_payment(self):
-        """Down payment after applying the discount percentage."""
         if self.down_payment and self.discount_percent:
             return self.down_payment * (1 - self.discount_percent / 100)
         return self.down_payment
@@ -228,6 +232,7 @@ class Payment(models.Model):
         status = "Paid" if self.is_paid else "Unpaid"
         return f"{self.client_status.client.full_name} – {status}"
 
+
 class Booking(models.Model):
     EVENT_CHOICES = [
         ("Viewing",   "Viewing"),
@@ -246,7 +251,6 @@ class Booking(models.Model):
         ("16:00", "4:00 PM"),
         ("17:00", "5:00 PM"),
     ]
-    # ── booking status ───────────────────────────────────────────────
     STATUS_CHOICES = [
         ("Active",    "Active"),
         ("Completed", "Completed"),
@@ -262,7 +266,6 @@ class Booking(models.Model):
     notes          = models.TextField(blank=True)
     created_at     = models.DateTimeField(auto_now_add=True)
 
-    # ── status fields ────────────────────────────────────────────────────
     status              = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Active")
     cancellation_reason = models.TextField(blank=True, null=True)
     cancelled_at        = models.DateTimeField(blank=True, null=True)
@@ -279,15 +282,6 @@ class Booking(models.Model):
 
 
 class UserLog(models.Model):
-    """
-    Staff roles (revised):
-      - Admin / Manager  → superuser flag, not stored here — full access, employee mgmt.
-      - Accounting Staff → same permissions as Admin except employee management;
-                           can add/view/edit clients, print financial reports,
-                           process payments, and manage bookings.
-      - Marketing Staff  → manage bookings only.
-      - General Staff    → view-only access (records/lots/bookings) for inventory purposes.
-    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     role = models.CharField(
         max_length=200,
@@ -311,7 +305,7 @@ class UserLog(models.Model):
     time_in                  = models.DateTimeField(blank=True, null=True)
     time_out                 = models.DateTimeField(blank=True, null=True)
     activities               = models.CharField(max_length=500, null=True, blank=True)
-    pin                      = models.CharField(max_length=128)  # hashed via make_password
+    pin                      = models.CharField(max_length=128)
 
     @property
     def full_name(self):
@@ -358,14 +352,9 @@ class ActivityLog(models.Model):
 
 
 class SystemSecret(models.Model):
-    """
-    Stores encrypted key-value pairs (email credentials, PIN, etc.)
-    Values are encrypted using Django's SECRET_KEY via PBKDF2 + XOR.
-    Admin-only — managed through the System Settings page.
-    """
     key             = models.CharField(max_length=100, unique=True)
     encrypted_value = models.TextField(blank=True, default="")
-    label           = models.CharField(max_length=200, blank=True)  # human-readable description
+    label           = models.CharField(max_length=200, blank=True)
     updated_at      = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -384,7 +373,6 @@ class SystemSecret(models.Model):
 
     @classmethod
     def get(cls, key: str, default: str = "") -> str:
-        """Convenience method — fetch and decrypt a value by key."""
         try:
             obj = cls.objects.get(key=key)
             return obj.get_value() or default
