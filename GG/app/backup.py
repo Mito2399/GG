@@ -31,7 +31,6 @@ def _is_on_cooldown() -> bool:
 
 
 def _v(value):
-    
     if value is None:
         return ""
     return str(value)
@@ -67,7 +66,7 @@ def _build_zip(db_path: Path) -> tuple[bytes, str]:
                 "address", "contact_number", "civil_status", "date_birth",
                 "religion", "occupation", "employer_name", "employer_address",
                 "spouse_name", "spouse_date_birth", "spouse_occupation", "spouse_employer",
-                "id_type", "id_number", "date_issued", "place_issued",
+                "id_type", "id_type_other", "id_number", "date_issued", "place_issued",
             ],
             [
                 (
@@ -77,7 +76,7 @@ def _build_zip(db_path: Path) -> tuple[bytes, str]:
                     c.client_employer_name, c.client_employer_address,
                     c.client_spouse_name, c.client_spouse_date_birth,
                     c.client_spouse_occupation, c.client_spouse_employer,
-                    c.client_id_type, c.client_id_number,
+                    c.client_id_type, c.client_id_type_other, c.client_id_number,
                     c.client_date_issued, c.client_place_issued,
                 )
                 for c in ClientPersonalInfo.objects.all().order_by("pk")
@@ -102,7 +101,7 @@ def _build_zip(db_path: Path) -> tuple[bytes, str]:
                 "monthly_payment", "duration", "months_remaining",
                 "start_date", "balance", "paid_balance",
                 "down_payment", "discount_percent",
-                "phase", "block", "section", "lot_number", "pa_number",
+                "phase", "block", "section", "lot_number", "pa_number", "la_number",
                 "contract_number", "interment_date", "pa_date", "date_fully_paid",
                 "column_level", "columbarium_type", "columbarium_level", "tomb_number",
                 "status", "is_cancelled", "cancellation_reason", "cancellation_date",
@@ -113,7 +112,7 @@ def _build_zip(db_path: Path) -> tuple[bytes, str]:
                     cs.monthly_payment, cs.duration, cs.months_remaining,
                     cs.start_date, cs.balance, cs.paid_balance,
                     cs.down_payment, cs.discount_percent,
-                    cs.phase, cs.block, cs.section, cs.lot_number, cs.pa_number,
+                    cs.phase, cs.block, cs.section, cs.lot_number, cs.pa_number, cs.la_number,
                     cs.contract_number, cs.interment_date, cs.pa_date, cs.date_fully_paid,
                     cs.column_level, cs.columbarium_type, cs.columbarium_level, cs.tomb_number,
                     cs.status, cs.is_cancelled, cs.cancellation_reason, cs.cancellation_date,
@@ -238,17 +237,9 @@ def _cleanup_offline() -> None:
 # ─────────────────────────────── cloud (Email SMTP) ───────────────────────────
 
 def _send_email_backup(zip_bytes: bytes, filename: str) -> bool:
-    """
-    Sends the backup ZIP as an email attachment.
-    Credentials fetched from encrypted SystemSecret DB table.
-    """
     try:
         from .models import SystemSecret
 
-        # FIX: SystemSecret rows start out empty until an admin manually
-        # re-enters credentials on the System Settings page. Until then,
-        # fall back to the values already configured in settings.py so
-        # email backup keeps working out of the box.
         host = SystemSecret.get(
             "BACKUP_EMAIL_HOST",
             getattr(settings, "BACKUP_EMAIL_HOST", "smtp.gmail.com"),
@@ -272,14 +263,14 @@ def _send_email_backup(zip_bytes: bytes, filename: str) -> bool:
     except Exception as exc:
         logger.error("[Backup] Failed to load email secrets from DB: %s", exc)
         return False
- 
+
     if not all([user, password, to]):
         logger.warning(
             "[Backup] Email backup skipped — credentials not configured. "
             "Go to System Settings to set them."
         )
         return False
- 
+
     try:
         import smtplib
         from email import encoders
@@ -287,14 +278,14 @@ def _send_email_backup(zip_bytes: bytes, filename: str) -> bool:
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
         import datetime
- 
+
         now_str = datetime.datetime.now().strftime("%B %d, %Y %I:%M %p")
- 
+
         msg            = MIMEMultipart()
         msg["From"]    = f"Green Garden Backup <{user}>"
         msg["To"]      = to
         msg["Subject"] = f"[Green Garden] Backup — {now_str}"
- 
+
         body_text = (
             f"Automated backup from Green Garden cemetery management system.\n\n"
             f"Date     : {now_str}\n"
@@ -304,7 +295,7 @@ def _send_email_backup(zip_bytes: bytes, filename: str) -> bool:
             f"To restore: extract the ZIP and import the CSVs or replace db.sqlite3."
         )
         msg.attach(MIMEText(body_text, "plain"))
- 
+
         attachment = MIMEBase("application", "zip")
         attachment.set_payload(zip_bytes)
         encoders.encode_base64(attachment)
@@ -313,16 +304,16 @@ def _send_email_backup(zip_bytes: bytes, filename: str) -> bool:
             f'attachment; filename="{filename}"',
         )
         msg.attach(attachment)
- 
+
         with smtplib.SMTP(host, port, timeout=30) as server:
             server.ehlo()
             server.starttls()
             server.login(user, password)
             server.send_message(msg)
- 
+
         logger.info("[Backup] Email sent → %s", to)
         return True
- 
+
     except smtplib.SMTPAuthenticationError as exc:
         logger.error("[Backup] Email auth failed — check App Password in System Settings. %s", exc)
         return False
@@ -375,7 +366,6 @@ def _do_backup(trigger: str, force: bool = False) -> dict:
 
 
 def trigger_backup(trigger: str = "activity") -> None:
-    """Async trigger used by Django signals. Fire-and-forget."""
     safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in trigger)[:30]
     threading.Thread(
         target=_do_backup,
@@ -387,5 +377,4 @@ def trigger_backup(trigger: str = "activity") -> None:
 
 
 def trigger_manual_backup() -> dict:
-    """Synchronous — used by management command and Backup Now button."""
     return _do_backup("manual", force=True)
