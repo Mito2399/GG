@@ -7,7 +7,6 @@ from datetime import date
 
 RELATIONSHIP_CHOICES = [
     ("",              "Select Relationship"),
-    # Immediate family
     ("Spouse",        "Spouse"),
     ("Son",           "Son"),
     ("Daughter",      "Daughter"),
@@ -15,7 +14,6 @@ RELATIONSHIP_CHOICES = [
     ("Mother",        "Mother"),
     ("Brother",       "Brother"),
     ("Sister",        "Sister"),
-    # Extended family
     ("Grandfather",   "Grandfather"),
     ("Grandmother",   "Grandmother"),
     ("Grandson",      "Grandson"),
@@ -25,12 +23,10 @@ RELATIONSHIP_CHOICES = [
     ("Nephew",        "Nephew"),
     ("Niece",         "Niece"),
     ("Cousin",        "Cousin"),
-    # In-laws
     ("Father-in-law", "Father-in-law"),
     ("Mother-in-law", "Mother-in-law"),
     ("Brother-in-law","Brother-in-law"),
     ("Sister-in-law", "Sister-in-law"),
-    # Other
     ("Guardian",      "Guardian"),
     ("Friend",        "Friend"),
     ("Other",         "Other"),
@@ -86,13 +82,13 @@ def clean_address(value, field_name="Address"):
 
 def clean_phone_number(number):
     number = (number or "").strip()
-    digits = re.sub(r"\D", "", number)        
+    digits = re.sub(r"\D", "", number)
 
     if len(digits) == 11 and digits.startswith("09"):
-        return digits                            
+        return digits
 
     if len(digits) == 12 and digits.startswith("639"):
-        return "0" + digits[2:]                
+        return "0" + digits[2:]
 
     raise forms.ValidationError(
         "Enter a valid Philippine mobile number (09XXXXXXXXX)."
@@ -126,6 +122,9 @@ class ClientForm(BootstrapForm):
             "client_spouse_date_birth": forms.DateInput(attrs={"type": "date"}),
             "client_date_issued":       forms.DateInput(attrs={"type": "date"}),
         }
+        labels = {
+            "client_id_type_other": "Specify ID",
+        }
 
     placeholders = {
         "client_first_name":        "First name",
@@ -142,6 +141,7 @@ class ClientForm(BootstrapForm):
         "client_spouse_date_birth": "YYYY-MM-DD",
         "client_spouse_occupation": "Spouse occupation",
         "client_spouse_employer":   "Spouse employer",
+        "client_id_type_other":     "e.g. Barangay ID, PhilHealth ID",
         "client_id_number":         "Enter ID number",
         "client_date_issued":       "YYYY-MM-DD",
         "client_place_issued":      "Place issued",
@@ -162,9 +162,14 @@ class ClientForm(BootstrapForm):
         )
         self.fields["client_id_type"] = forms.ChoiceField(
             choices=id_choices,
-            widget=forms.Select(attrs={"class": "form-control"}),
+            widget=forms.Select(attrs={"class": "form-control", "id": "id_client_id_type"}),
             required=True,
         )
+        # Specify-ID field — optional at the field level; enforced in clean()
+        self.fields["client_id_type_other"].required = False
+        self.fields["client_id_type_other"].widget.attrs.update({
+            "id": "id_client_id_type_other",
+        })
         self.fields["client_contact_number"].widget.attrs.update({
             "maxlength": "11", "inputmode": "numeric",
         })
@@ -235,6 +240,32 @@ class ClientForm(BootstrapForm):
         if not v:
             raise forms.ValidationError("Place issued is required.")
         return v.title()
+
+    def clean(self):
+        cleaned = super().clean()
+
+        id_type  = cleaned.get("client_id_type")
+        id_other = (cleaned.get("client_id_type_other") or "").strip()
+
+        if id_type == "Other":
+            if not id_other:
+                self.add_error(
+                    "client_id_type_other",
+                    "Please specify the ID type.",
+                )
+            else:
+                if len(id_other) < 2:
+                    self.add_error(
+                        "client_id_type_other",
+                        "Specify ID type is too short.",
+                    )
+                else:
+                    cleaned["client_id_type_other"] = id_other.title()
+        else:
+            # Wipe stale value when user switches away from "Other"
+            cleaned["client_id_type_other"] = ""
+
+        return cleaned
 
 
 # ─────────────────────────────────────────────── BeneficiaryForm ──────────────
@@ -509,7 +540,6 @@ class PlanForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-control"}),
     )
 
-    # ── Standard lot location fields ──────────────────────────────────────
     phase = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. P-1", "data-uppercase": "true"}),
@@ -529,9 +559,15 @@ class PlanForm(forms.Form):
     pa_number = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. 00123", "data-uppercase": "true"}),
+        label="P.A. Number",
     )
 
-    # ── THTC (kept as-is: Phase/Block/Section + Column Level) ─────────────
+    la_number = forms.CharField(
+        max_length=200, required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. 00123", "data-uppercase": "true"}),
+        label="L.A. Number",
+    )
+
     column_level = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={
@@ -539,7 +575,6 @@ class PlanForm(forms.Form):
         label="Level",
     )
 
-    # ── THS (new, separate layout) ─────────────────────────────────────────
     ths_type = forms.ChoiceField(
         choices=[("", "Select…")] + ClientStatus.THS_TYPE_CHOICES,
         required=False,
@@ -559,7 +594,6 @@ class PlanForm(forms.Form):
         label="Column",
     )
 
-    # ── Columbarium (separate plan type — unchanged) ───────────────────────
     columbarium_type = forms.ChoiceField(
         choices=[
             ("",                "Select Type"),
@@ -570,19 +604,6 @@ class PlanForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-control"}),
         label="TCT A/R Type",
     )
-    
-    columbarium_level = forms.ChoiceField(
-        choices=[
-            ("", "Select Level"),
-            (1,  "Level 1"),
-            (2,  "Level 2"),
-            (3,  "Level 3"),
-            (4,  "Level 4"),
-        ],
-        required=False,
-        widget=forms.Select(attrs={"class": "form-control"}),
-        label="Level",
-    )
     tomb_number = forms.CharField(
         max_length=200, required=False,
         widget=forms.TextInput(attrs={
@@ -590,12 +611,6 @@ class PlanForm(forms.Form):
         label="Tomb Number",
     )
 
-    # ── Extended tracking ─────────────────────────────────────────────────
-    contract_number = forms.CharField(
-        max_length=200, required=False,
-        widget=forms.TextInput(attrs={
-            "class": "form-control", "placeholder": "Contract / P.A. number", "data-uppercase": "true"}),
-    )
     interment_date = forms.DateField(
         required=False,
         widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
@@ -604,15 +619,6 @@ class PlanForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
     )
-
-    def clean_columbarium_level(self):
-        v = self.cleaned_data.get("columbarium_level")
-        if v:
-            try:
-                return int(v)
-            except (ValueError, TypeError):
-                return None
-        return None
 
     def clean_plan(self):
         v = self.cleaned_data.get("plan")
@@ -649,8 +655,8 @@ class PlanForm(forms.Form):
         return int(v)
 
     _UPPERCASE_FIELDS = [
-        "phase", "block", "section", "lot_number", "pa_number",
-        "contract_number", "column_level", "tomb_number", "ths_column",
+        "phase", "block", "section", "lot_number", "pa_number", "la_number",
+        "column_level", "tomb_number", "ths_column",
     ]
 
     def clean(self):
@@ -675,7 +681,7 @@ class BookingForm(forms.ModelForm):
             }),
             "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
         }
- 
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         placeholders = {
@@ -689,7 +695,6 @@ class BookingForm(forms.ModelForm):
                 field.widget.attrs["class"] = "form-control"
             if name in placeholders:
                 field.widget.attrs["placeholder"] = placeholders[name]
-        # Hide the native time select — JS slot picker writes into it
         self.fields["booking_time"].widget.attrs.update({
             "class": "form-select d-none",
             "id": "id_booking_time",
@@ -697,7 +702,7 @@ class BookingForm(forms.ModelForm):
         self.fields["contact_number"].widget.attrs.update({
             "maxlength": "11", "inputmode": "numeric",
         })
- 
+
     def clean_client_name(self):
         v = self.cleaned_data.get("client_name", "").strip()
         if not v:
@@ -707,16 +712,16 @@ class BookingForm(forms.ModelForm):
                 "Name can only contain letters, spaces, hyphens, or periods."
             )
         return v.title()
- 
+
     def clean_contact_number(self):
         return clean_phone_number(self.cleaned_data.get("contact_number"))
- 
+
     def clean_booking_date(self):
         d = self.cleaned_data.get("booking_date")
         if d and d < date.today():
             raise forms.ValidationError("Booking date cannot be in the past.")
         return d
- 
+
     def clean(self):
         cleaned = super().clean()
         booking_date = cleaned.get("booking_date")
