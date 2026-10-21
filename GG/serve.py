@@ -13,8 +13,79 @@ if getattr(sys, "frozen", False):
 import django
 django.setup()
 
+from django.conf import settings as dj_settings
+from django.core.management import call_command
+from django.contrib.auth.models import User
+
 from waitress import serve
 from GG.wsgi import application
+
+
+# ── Default admin credentials (change these before building) ──────────────
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD = "changeme123"   # ⚠ change this, or change it after first login
+DEFAULT_ADMIN_EMAIL    = ""
+
+
+def _detect_cache_table_name():
+    """
+    Return the LOCATION (physical table name) of the default cache backend
+    IF AND ONLY IF it is Django's database-backed cache. Otherwise None.
+    """
+    try:
+        cfg     = dj_settings.CACHES.get("default", {})
+        backend = cfg.get("BACKEND", "")
+        if "django.core.cache.backends.db" in backend:
+            return cfg.get("LOCATION") or "gg_cache_table"
+    except Exception:
+        pass
+    return None
+
+
+def ensure_database_ready():
+    """
+    Runs on every startup. Safe to run repeatedly — idempotent.
+
+      1. Applies pending migrations (creates db.sqlite3 + all app tables).
+      2. Creates the Django cache table if the cache backend is DatabaseCache.
+      3. Creates a default superuser ONLY if no superuser exists yet.
+    """
+    print("Checking database...")
+
+    # ── 1. Migrations ─────────────────────────────────────────────────────
+    # `migrate` accepts interactive=False — pass it so nothing prompts.
+    try:
+        call_command("migrate", interactive=False, verbosity=1)
+    except Exception as exc:
+        print(f"ERROR: Migration failed — {exc}")
+        raise
+
+    # ── 2. Cache table ────────────────────────────────────────────────────
+    # `createcachetable` does NOT accept interactive. It only accepts:
+    #   [tablename] [--database] [--dry-run] [--verbosity]
+    # Passing `interactive=False` here raises:
+    #   TypeError: Unknown option(s) for createcachetable command: interactive.
+    cache_table = _detect_cache_table_name()
+    if cache_table:
+        try:
+            call_command("createcachetable", cache_table, verbosity=0)
+            print(f"Cache table ready — '{cache_table}'")
+        except Exception as exc:
+            print(f"ERROR: Could not create cache table '{cache_table}' — {exc}")
+            raise
+
+    # ── 3. Default superuser ──────────────────────────────────────────────
+    if not User.objects.filter(is_superuser=True).exists():
+        print(f"No admin account found — creating default admin '{DEFAULT_ADMIN_USERNAME}'...")
+        User.objects.create_superuser(
+            username=DEFAULT_ADMIN_USERNAME,
+            email=DEFAULT_ADMIN_EMAIL,
+            password=DEFAULT_ADMIN_PASSWORD,
+        )
+        print(f"Default admin created — username: '{DEFAULT_ADMIN_USERNAME}', password: '{DEFAULT_ADMIN_PASSWORD}'")
+        print("IMPORTANT: Log in and change this password immediately.")
+    else:
+        print("Admin account already exists — skipping creation.")
 
 
 def get_lan_ip():
@@ -30,7 +101,9 @@ def get_lan_ip():
 
 
 if __name__ == "__main__":
-    ip = get_lan_ip()
+    ensure_database_ready()
+
+    ip  = get_lan_ip()
     url = f"http://{ip}:8000"
 
     print("=" * 55)
