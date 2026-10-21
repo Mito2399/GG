@@ -1,0 +1,93 @@
+{% load humanize %}
+{% for data in client %}
+<tr id="client-row-{{ data.pk }}">
+  <td>{{ data.pk }}</td>
+
+  {# ── P.A. / L.A. column: TCT A/R uses L.A.; everything else uses P.A. ── #}
+  <td>
+    {% with latest=data.clientstatus_set.last %}
+      {% if latest %}
+        {% if latest.plan == "TCT A/R" %}
+          {{ latest.la_number|default:"—" }}
+        {% else %}
+          {{ latest.pa_number|default:"—" }}
+        {% endif %}
+      {% else %}
+        <span class="text-muted">—</span>
+      {% endif %}
+    {% endwith %}
+  </td>
+
+  <td>{{ data.full_name }}</td>
+  <td>{{ data.client_contact_number }}</td>
+  <td>{{ data.client_civil_status }}</td>
+  <td>{{ data.client_date_birth }}</td>
+
+  {# ── Plan column: prefer ACTIVE plan over oldest record ── #}
+  <td>
+    {% with active=data.clientstatus_set.all %}
+      {% for cs in active %}
+        {% if cs.status and not cs.is_cancelled and cs.plan != "No Plan" %}
+          {{ cs.plan }}
+        {% endif %}
+      {% empty %}
+        <span class="text-muted">No plan</span>
+      {% endfor %}
+    {% endwith %}
+  </td>
+
+  {# ── Status column: prefer ACTIVE plan ── #}
+  <td>
+    {% with latest=data.clientstatus_set.last %}
+      {% if latest.is_cancelled %}
+        <span class="badge bg-danger">Cancelled</span>
+      {% elif latest.plan == "No Plan" %}
+        <span class="badge bg-warning text-dark">Inactive</span>
+      {% elif latest.status %}
+        <span class="badge bg-success">Active</span>
+      {% else %}
+        <span class="badge bg-secondary">Completed</span>
+      {% endif %}
+    {% endwith %}
+  </td>
+
+  <td class="no-print">
+    <a href="{% url 'client-details' data.pk %}" class="btn btn-sm btn-info">View</a>
+
+    <a href="{% url 'edit-details' data.pk %}"
+       class="btn btn-sm btn-warning"
+       onclick="return requireRole('accounting_staff', 'Only Accounting Staff can edit client records.')">
+      Edit
+    </a>
+
+    <button class="btn btn-sm btn-danger delete-btn"
+            data-pk="{{ data.pk }}"
+            data-name="{{ data.full_name }}">
+      Delete
+    </button>
+
+    {% if is_admin or is_accounting_staff %}
+    <a href="{% url 'add-payment' data.pk %}" class="btn btn-sm btn-success">
+      Payment
+    </a>
+    {% else %}
+    <a href="{% url 'payment-history' data.pk %}" class="btn btn-sm btn-success"
+      onclick="return requireRole('accounting_staff', 'Only Accounting Staff can view and manage payments.')">
+      Payment
+    </a>
+    {% endif %}
+
+    <a href="{% url 'plan' data.pk %}"
+       class="btn btn-sm btn-primary"
+       onclick="return requireRole('accounting_staff', 'Only Accounting Staff can manage plans.')">
+      Plan
+    </a>
+  </td>
+</tr>
+{% empty %}
+<tr>
+  <td colspan="9" class="text-center text-muted py-4">
+    No clients found.
+  </td>
+</tr>
+{% endfor %}

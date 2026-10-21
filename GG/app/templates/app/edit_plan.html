@@ -1,0 +1,807 @@
+{% extends 'app/base.html' %}
+{% load humanize %}
+{% block title %}Edit Plan — Green Garden{% endblock %}
+{% block nav_records %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .bg-purple { background-color: #6f42c1 !important; }
+  .text-purple { color: #6f42c1 !important; }
+  .bg-pink { background-color: #d63384 !important; }
+  .text-pink { color: #d63384 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+  <h4 class="mb-0">Edit Plan</h4>
+  <a href="{% url 'plan' client.pk %}" class="btn btn-secondary btn-sm">← Back to Plan Management</a>
+</div>
+
+<div class="card shadow-sm border-0 mb-4"><div class="card-body">
+  <h6 class="text-muted mb-1">Client</h6>
+  <h5 class="mb-0">{{ client.full_name }}</h5>
+  <small class="text-muted">ID #{{ client.pk }} · {{ client.client_contact_number }}</small>
+</div></div>
+
+{% if has_payments %}
+<div class="alert alert-warning">
+  <strong>⚠️ Editing Restricted:</strong> This plan already has recorded payments. You cannot change the financial terms or duration.
+  If you need to change these, please cancel this plan and assign a new one.
+  <br><strong>Note:</strong> Name of Deceased and Type of Remains can still be added or updated below.
+</div>
+{% endif %}
+
+{% if form.non_field_errors %}
+<div class="alert alert-danger no-print">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}</div>
+{% endif %}
+
+<div class="card shadow-sm border-0 mb-4 no-print"><div class="card-body">
+
+  <div class="d-flex align-items-center mb-3 gap-2">
+    <h5 class="mb-0">Plan Details</h5>
+    <span class="badge bg-primary" id="plan-mode-badge">Standard</span>
+  </div>
+
+  <form method="POST" action="{% url 'edit-plan' cs.pk %}" id="plan-form">
+    {% csrf_token %}
+
+    <fieldset {% if has_payments %}disabled{% endif %}>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Lot Type <span class="text-danger">*</span></label>
+        {{ form.plan }}
+        {% if form.plan.errors %}<div class="text-danger small mt-1">{{ form.plan.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">
+          <span id="price-label-text">Total Price</span> <span class="text-danger">*</span>
+        </label>
+        {{ form.total_price }}
+        {% if form.total_price.errors %}<div class="text-danger small mt-1">{{ form.total_price.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">P-Care %</label>
+        {{ form.pcare_percent }}
+        {% if form.pcare_percent.errors %}<div class="text-danger small mt-1">{{ form.pcare_percent.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="col-md-3" id="duration-col">
+        <label class="form-label small fw-semibold">
+          Duration (Months) <span class="text-danger">*</span>
+        </label>
+        {{ form.duration }}
+        {% if form.duration.errors %}<div class="text-danger small mt-1">{{ form.duration.errors.0 }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Down Payment</label>
+        {{ form.down_payment }}
+        {% if form.down_payment.errors %}<div class="text-danger small mt-1">{{ form.down_payment.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Discount % <small class="text-muted fw-normal">(on down payment)</small></label>
+        {{ form.discount_percent }}
+        {% if form.discount_percent.errors %}<div class="text-danger small mt-1">{{ form.discount_percent.errors.0 }}</div>{% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small text-muted">Effective Down Payment</label>
+        <div class="form-control bg-light text-success fw-semibold" id="effective-dp-preview">₱0.00</div>
+      </div>
+      <div class="col-md-3" id="monthly-payment-col">
+        <label class="form-label small fw-semibold text-muted">
+          Monthly Payment <small class="fw-normal">(auto-computed)</small>
+        </label>
+        <div class="input-group">
+          <span class="input-group-text">₱</span>
+          <input type="number" step="0.01" id="monthly-display"
+                 class="form-control bg-light fw-semibold text-primary" readonly
+                 placeholder="0.00">
+        </div>
+        <div style="display:none">{{ form.monthly_payment }}</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Memorial Plan Promo
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Memorial Plan Promo</label>
+        {{ form.promo_scheme }}
+        {% if form.promo_scheme.errors %}
+          <div class="text-danger small mt-1">{{ form.promo_scheme.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-8">
+        <div id="promo-details-panel" class="border rounded p-2 d-none"
+             style="background:#f0f7ff; border-color:#b6d4fe!important;">
+          <div class="small fw-semibold text-primary mb-1">Promo Details</div>
+          <ul id="promo-details-list" class="mb-0 ps-3 small"></ul>
+          <div id="promo-min-note" class="mt-1 small text-muted fst-italic d-none"></div>
+        </div>
+      </div>
+    </div>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Due Day + Type of Remains
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-3" id="due-day-col">
+        <label class="form-label small fw-semibold">
+          Due Day of the Month <span class="text-danger">*</span>
+          <small class="text-muted fw-normal">(every month)</small>
+        </label>
+        {{ form.due_day }}
+        {% if form.due_day.errors %}
+          <div class="text-danger small mt-1">{{ form.due_day.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Type of Remains</label>
+        {{ form.remains_type }}
+        {% if form.remains_type.errors %}
+          <div class="text-danger small mt-1">{{ form.remains_type.errors.0 }}</div>
+        {% endif %}
+      </div>
+      <div class="col-md-3 d-none" id="remains-other-wrapper">
+        <label class="form-label small fw-semibold">Specify Type of Remains</label>
+        {{ form.remains_type_other }}
+        {% if form.remains_type_other.errors %}
+          <div class="text-danger small mt-1">{{ form.remains_type_other.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <hr class="my-3">
+
+    <div id="group-standard">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3"><label class="form-label small fw-semibold">Phase</label>{{ form.phase }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Block</label>{{ form.block }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Section</label>{{ form.section }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Lot Number</label>{{ form.lot_number }}</div>
+      </div>
+    </div>
+
+    <!-- LAWN LOT -->
+    <div id="group-lawn" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold text-success">
+            Lawn Lot Type <span class="text-danger">*</span>
+          </label>
+          {{ form.lawn_lot_type }}
+          {% if form.lawn_lot_type.errors %}
+            <div class="text-danger small mt-1">{{ form.lawn_lot_type.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div id="group-regular-package" class="d-none">
+        <div class="row g-3 mb-3">
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold text-success">
+              Regular Lot Packages <span class="text-danger">*</span>
+            </label>
+            {{ form.regular_lot_package }}
+            {% if form.regular_lot_package.errors %}
+              <div class="text-danger small mt-1">{{ form.regular_lot_package.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-3"><label class="form-label small fw-semibold">Phase</label>{{ form.phase }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Block</label>{{ form.block }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Section</label>{{ form.section }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Lot Number</label>{{ form.lot_number }}</div>
+      </div>
+    </div>
+
+    <!-- GARDEN LOT -->
+    <div id="group-garden" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold text-pink">
+            Garden Type <span class="text-danger">*</span>
+          </label>
+          {{ form.garden_type }}
+          {% if form.garden_type.errors %}
+            <div class="text-danger small mt-1">{{ form.garden_type.errors.0 }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold text-pink">
+            Garden Section <span class="text-danger">*</span>
+          </label>
+          {{ form.garden_section }}
+          {% if form.garden_section.errors %}
+            <div class="text-danger small mt-1">{{ form.garden_section.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-3"><label class="form-label small fw-semibold">Phase</label>{{ form.phase }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Block</label>{{ form.block }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Section</label>{{ form.section }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Lot Number</label>{{ form.lot_number }}</div>
+      </div>
+    </div>
+
+    <!-- MAUSOLEUM -->
+    <div id="group-mausoleum" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold text-purple">
+            Mausoleum Type <span class="text-danger">*</span>
+          </label>
+          {{ form.mausoleum_type }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold text-purple">
+            SQM <span class="text-danger">*</span>
+          </label>
+          {{ form.sqm }}
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Phase</label>
+          {{ form.phase }}
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-3"><label class="form-label small fw-semibold">Block</label>{{ form.block }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Section</label>{{ form.section }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Lot Number</label>{{ form.lot_number }}</div>
+      </div>
+    </div>
+
+    <div id="group-ths" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">THS Type <span class="text-danger">*</span></label>
+          {{ form.ths_type }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Section <span class="text-danger">*</span></label>
+          {{ form.ths_section }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Level</label>
+          {{ form.column_level }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Column</label>
+          {{ form.ths_column }}
+        </div>
+      </div>
+    </div>
+
+    <div id="group-thtc" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Type</label>
+          <div class="form-control bg-light text-muted">Columbarium</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Section</label>
+          <select name="section" class="form-control" id="thtc-section">
+            <option value="">Select…</option>
+            <option value="St. Gabriel I">St. Gabriel I</option>
+            <option value="St. Gabriel II">St. Gabriel II</option>
+            <option value="St. Gabriel III">St. Gabriel III</option>
+            <option value="St. Rafael III">St. Rafael III</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-primary">Level</label>
+          {{ form.column_level }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-primary">Column</label>
+          {{ form.ths_column }}
+        </div>
+      </div>
+    </div>
+
+    <div id="group-columbarium" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">TCT A/R Type</label>
+          {{ form.columbarium_type }}
+        </div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Phase</label>{{ form.phase }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Block</label>{{ form.block }}</div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Section</label>{{ form.section }}</div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Level</label>
+          {{ form.column_level }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Column</label>
+          {{ form.ths_column }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">Tomb Number</label>
+          {{ form.tomb_number }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold text-info">L.A. Number</label>
+          {{ form.la_number }}
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold text-secondary">Documentation Fee</label>
+          {{ form.documentation_fee }}
+        </div>
+        <div class="col-md-8">
+          <label class="form-label small fw-semibold text-secondary">
+            Sales Associate
+            <small class="text-muted fw-normal">(locked — set when plan was created)</small>
+          </label>
+          <div class="form-control bg-light text-muted">
+            {{ cs.sales_agent|default:"—" }}
+          </div>
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold text-secondary">Date of Death</label>
+          {{ form.date_of_death }}
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small fw-semibold text-secondary">Death Certificate No.</label>
+          {{ form.death_certificate_number }}
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-4" id="field-pa-number">
+        <label class="form-label small fw-semibold">P.A. Number</label>
+        {{ form.pa_number }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">Interment Date</label>
+        {{ form.interment_date }}
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold">P.A. Date</label>
+        {{ form.pa_date }}
+      </div>
+    </div>
+    </fieldset>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         Name of Deceased (was "Interment Recipients") — optional
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div class="form-section mb-4">
+      <h5 class="mb-1">Name of Deceased</h5>
+      <p class="text-muted small mb-3">Optional — add the name(s) of the deceased.</p>
+
+      {{ recipient_formset.management_form }}
+      {% if recipient_formset.non_form_errors %}
+        <div class="alert alert-danger">
+          {% for error in recipient_formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+      {% endif %}
+      <div id="recipients-wrapper">
+        {% for rform in recipient_formset %}
+        <div class="row mb-2 recipient-row align-items-center">
+          {% for hidden in rform.hidden_fields %}{{ hidden }}{% endfor %}
+          <div class="col-md-6">
+            {{ rform.name }}
+            {% if rform.name.errors %}<div class="text-danger small">{{ rform.name.errors.0 }}</div>{% endif %}
+          </div>
+          <div class="col-md-2">
+            {% if rform.instance.pk %}
+              <div class="d-none">{{ rform.DELETE }}</div>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-danger remove-recipient-btn">Remove</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="button" id="add-recipient" class="btn btn-secondary btn-sm mt-2">+ Add Name</button>
+    </div>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <div class="d-flex justify-content-start align-items-end mt-4 pt-3 border-top">
+      <button type="submit"
+              class="btn btn-success px-4"
+              onclick="return requireRole('accounting_staff', 'Only Accounting Staff can edit plans.')">
+        Update Plan
+      </button>
+    </div>
+  </form>
+</div></div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('[data-uppercase]').forEach(function (input) {
+  input.addEventListener('input', function () {
+    const start = this.selectionStart;
+    const end   = this.selectionEnd;
+    this.value  = this.value.toUpperCase();
+    this.setSelectionRange(start, end);
+  });
+});
+
+// ── Memorial Plan Promo toggle + details display ─────────────────────
+(function () {
+  const PROMO_SCHEMES = {
+    "No Promo": { details: [], minDisplay: "", disable: [], spotCash: false },
+    "Scheme 1": {
+      details: [
+        "20% Discount",
+        "20% Down Payment",
+        "Down payment payable in 3 months",
+        "Remaining balance payable in 4 years / 48 months",
+        "0% Interest",
+      ],
+      minDisplay: "Promotional monthly payment: as low as ₱2,000/month",
+      disable: [],
+      spotCash: false,
+    },
+    "Scheme 2": {
+      details: [
+        "Straight Monthly Payment",
+        "No Down Payment",
+        "Payable in 5 years / 60 months",
+      ],
+      minDisplay: "Promotional monthly payment: as low as ₱2,500/month",
+      disable: ["id_down_payment", "id_discount_percent"],
+      spotCash: false,
+    },
+    "Scheme 3": {
+      details: [
+        "20% less on spot cash payment",
+        "Additional 10% discount",
+        "Free bone transfer from another cemetery",
+        "Promo valid until further notice",
+      ],
+      minDisplay: "",
+      disable: ["id_down_payment", "id_discount_percent", "id_duration",
+                "id_monthly_display", "id_monthly_payment"],
+      spotCash: true,
+    },
+  };
+
+  const promoSelect  = document.getElementById("id_promo_scheme");
+  const detailsPanel = document.getElementById("promo-details-panel");
+  const detailsList  = document.getElementById("promo-details-list");
+  const minNote      = document.getElementById("promo-min-note");
+
+  if (!promoSelect || !detailsPanel || !detailsList) return;
+
+  function applyPromo() {
+    const scheme = PROMO_SCHEMES[promoSelect.value] || PROMO_SCHEMES["No Promo"];
+
+    if (scheme.details.length > 0) {
+      detailsList.innerHTML = scheme.details.map(d => `<li>${d}</li>`).join("");
+      detailsPanel.classList.remove("d-none");
+    } else {
+      detailsPanel.classList.add("d-none");
+    }
+
+    if (scheme.minDisplay) {
+      minNote.textContent = scheme.minDisplay;
+      minNote.classList.remove("d-none");
+    } else {
+      minNote.classList.add("d-none");
+    }
+
+    const ALL_TOGGLES = ["id_down_payment", "id_discount_percent", "id_duration",
+                         "id_monthly_display", "id_monthly_payment"];
+
+    ALL_TOGGLES.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = false; el.readOnly = false; }
+    });
+
+    scheme.disable.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = true; el.readOnly = true; }
+    });
+
+    if (!scheme.spotCash && typeof recalcAll === "function") {
+      recalcAll();
+    }
+  }
+
+  promoSelect.addEventListener("change", applyPromo);
+  applyPromo();
+})();
+// ───────────────────────────────────────────────────────────────────────
+
+// ── Type of Remains toggle ─────────────────────────────────────────────
+(function () {
+  const remainsSelect = document.getElementById("id_remains_type");
+  const otherWrapper  = document.getElementById("remains-other-wrapper");
+  const otherInput    = document.getElementById("id_remains_type_other");
+
+  if (!remainsSelect || !otherWrapper) return;
+
+  function toggleRemainsOther() {
+    if (remainsSelect.value === "Others") {
+      otherWrapper.classList.remove("d-none");
+    } else {
+      otherWrapper.classList.add("d-none");
+      if (otherInput) otherInput.value = "";
+    }
+  }
+
+  remainsSelect.addEventListener("change", toggleRemainsOther);
+  toggleRemainsOther();
+})();
+// ───────────────────────────────────────────────────────────────────────
+
+function updatePriceLabel(planValue) {
+  const labelEl = document.getElementById("price-label-text");
+  if (!labelEl) return;
+  labelEl.textContent = "Total Price";
+}
+
+function updateEffectiveDP() {
+  const dp   = parseFloat(document.getElementById("id_down_payment")?.value) || 0;
+  const disc = parseFloat(document.getElementById("id_discount_percent")?.value) || 0;
+  const eff  = dp * (1 - disc / 100);
+  const el   = document.getElementById("effective-dp-preview");
+  if (el) el.textContent = "₱" + eff.toLocaleString("en-PH", { minimumFractionDigits: 2 });
+}
+
+function updateMonthly() {
+  const planSel     = document.getElementById("id_plan");
+  const promoSelect = document.getElementById("id_promo_scheme");
+  const total       = parseFloat(document.getElementById("id_total_price")?.value) || 0;
+  const dp          = parseFloat(document.getElementById("id_down_payment")?.value) || 0;
+  const pcarePct    = parseFloat(document.getElementById("id_pcare_percent")?.value) || 0;
+  const discountPct = parseFloat(document.getElementById("id_discount_percent")?.value) || 0;
+  const duration    = parseInt(document.getElementById("id_duration")?.value) || 0;
+
+  const scheme = promoSelect ? promoSelect.value : "No Promo";
+
+  if (scheme === "Scheme 3") {
+    const display = document.getElementById("monthly-display");
+    const hidden  = document.getElementById("id_monthly_payment");
+    if (display) display.value = "0.00";
+    if (hidden)  hidden.value  = "0";
+    return;
+  }
+
+  let monthly = 0;
+
+  if (scheme === "Scheme 1" || scheme === "Scheme 2") {
+    const schemeCfg = {
+      "Scheme 1": { disc: 20, dpPct: 20, balMonths: 48 },
+      "Scheme 2": { disc: 0,  dpPct: 0,  balMonths: 60 },
+    }[scheme];
+
+    const discounted = total * (1 - schemeCfg.disc / 100);
+    const schemeDp   = discounted * (schemeCfg.dpPct / 100);
+    const balLot     = discounted - schemeDp;
+    const totalPcare = discounted * (pcarePct / 100);
+    const dpPcare    = schemeDp * (pcarePct / 100);
+    const balPcare   = totalPcare - dpPcare;
+
+    monthly = (balLot + balPcare) / schemeCfg.balMonths;
+    if (monthly < 0 || !isFinite(monthly)) monthly = 0;
+  } else {
+    if (planSel?.value !== "TCT A/R" && duration > 0) {
+      const totalPcare  = total * (pcarePct / 100);
+      const effectiveDp = dp * (1 - discountPct / 100);
+      const dpPcare     = effectiveDp * (pcarePct / 100);
+      const balLot      = total - effectiveDp;
+      const balPcare    = totalPcare - dpPcare;
+
+      monthly = (balLot + balPcare) / duration;
+      if (monthly < 0 || !isFinite(monthly)) monthly = 0;
+    }
+  }
+
+  const display = document.getElementById("monthly-display");
+  const hidden  = document.getElementById("id_monthly_payment");
+  const val     = monthly.toFixed(2);
+  if (display) display.value = val;
+  if (hidden)  hidden.value  = val;
+}
+
+function recalcAll() { updateEffectiveDP(); updateMonthly(); }
+
+document.getElementById("id_total_price")?.addEventListener("input",  recalcAll);
+document.getElementById("id_down_payment")?.addEventListener("input",  recalcAll);
+document.getElementById("id_discount_percent")?.addEventListener("change", recalcAll);
+document.getElementById("id_duration")?.addEventListener("change", recalcAll);
+document.getElementById("id_duration")?.addEventListener("input",  recalcAll);
+document.getElementById("id_pcare_percent")?.addEventListener("input",  recalcAll);
+document.getElementById("id_pcare_percent")?.addEventListener("change", recalcAll);
+
+recalcAll();
+
+const TYPE_TO_GROUP = {
+  "Lawn Lot":   "lawn",
+  "Garden Lot": "garden",
+  "Mausoleum":  "mausoleum",
+  "THS":        "ths",
+  "THTC":       "thtc",
+  "TCT A/R":    "columbarium",
+};
+
+const BADGE = {
+  standard:    { label: "Standard",    cls: "bg-primary" },
+  lawn:        { label: "Lawn Lot",    cls: "bg-success text-white" },
+  garden:      { label: "Garden Lot",  cls: "bg-pink text-white" },
+  mausoleum:   { label: "Mausoleum",   cls: "bg-purple text-white" },
+  ths:         { label: "THS",         cls: "bg-info text-dark" },
+  thtc:        { label: "THTC",        cls: "bg-warning text-dark" },
+  columbarium: { label: "TCT A/R",     cls: "bg-secondary" },
+};
+
+const GROUPS = {
+  standard:    document.getElementById("group-standard"),
+  lawn:        document.getElementById("group-lawn"),
+  garden:      document.getElementById("group-garden"),
+  mausoleum:   document.getElementById("group-mausoleum"),
+  ths:         document.getElementById("group-ths"),
+  thtc:        document.getElementById("group-thtc"),
+  columbarium: document.getElementById("group-columbarium"),
+};
+
+function updateRegularPackageVisibility() {
+  const lawnTypeSel = document.getElementById("id_lawn_lot_type");
+  const pkgGroup    = document.getElementById("group-regular-package");
+  const pkgSel      = document.getElementById("id_regular_lot_package");
+  if (!lawnTypeSel || !pkgGroup || !pkgSel) return;
+
+  const isRegular = lawnTypeSel.value === "Regular";
+  pkgGroup.classList.toggle("d-none", !isRegular);
+  pkgSel.disabled = !isRegular;
+  if (!isRegular) {
+    pkgSel.value = "";
+  }
+}
+document.getElementById("id_lawn_lot_type")?.addEventListener("change", updateRegularPackageVisibility);
+
+function applyPlanGroup(planValue) {
+  const groupKey = TYPE_TO_GROUP[planValue] || "standard";
+  const isTctAr  = groupKey === "columbarium";
+
+  const badge = document.getElementById("plan-mode-badge");
+  if (badge) {
+    badge.textContent = BADGE[groupKey].label;
+    badge.className   = "badge " + BADGE[groupKey].cls;
+  }
+
+  Object.entries(GROUPS).forEach(([key, el]) => {
+    if (!el) return;
+    const isActive = key === groupKey;
+    el.classList.toggle("d-none", !isActive);
+    el.querySelectorAll("input, select, textarea").forEach(f => {
+      if (f.id === "id_regular_lot_package") return;
+      f.disabled = !isActive;
+      if (!isActive && f.type !== "checkbox") f.value = "";
+    });
+  });
+
+  if (groupKey === "lawn") {
+    updateRegularPackageVisibility();
+  } else {
+    const pkgSel = document.getElementById("id_regular_lot_package");
+    if (pkgSel) { pkgSel.value = ""; pkgSel.disabled = true; }
+    document.getElementById("group-regular-package")?.classList.add("d-none");
+  }
+
+  const paField = document.getElementById("field-pa-number");
+  if (paField) {
+    paField.classList.toggle("d-none", isTctAr);
+    paField.querySelectorAll("input").forEach(f => {
+      f.disabled = isTctAr;
+      if (isTctAr) f.value = "";
+    });
+  }
+
+  const durCol = document.getElementById("duration-col");
+  const mpcCol = document.getElementById("monthly-payment-col");
+  const dueCol = document.getElementById("due-day-col");
+
+  if (durCol) durCol.classList.toggle("d-none", isTctAr);
+  if (mpcCol) mpcCol.classList.toggle("d-none", isTctAr);
+  if (dueCol) dueCol.classList.toggle("d-none", isTctAr);
+
+  const durInput = document.getElementById("id_duration");
+  if (durInput) {
+    durInput.disabled = isTctAr;
+    if (isTctAr) durInput.value = "";
+  }
+  const monthlyInput = document.getElementById("id_monthly_payment");
+  if (monthlyInput) {
+    monthlyInput.disabled = isTctAr;
+    if (isTctAr) monthlyInput.value = "0";
+  }
+  const dueInput = document.getElementById("id_due_day");
+  if (dueInput) {
+    dueInput.disabled = isTctAr;
+    if (isTctAr) dueInput.value = "2";
+  }
+
+  updatePriceLabel(planValue);
+
+  if (groupKey === "ths") updateThsSectionOptions();
+  recalcAll();
+}
+
+const THS_SECTIONS_BY_TYPE = {
+  "Niche":       ["St. Vincent", "St. John", "St. Luke", "St. Mathew", "St. Mark"],
+  "Columbarium": ["St. Paul - Love", "St. Paul - Hope", "St. Paul - Faith", "St. Paul - Justice"],
+};
+
+function updateThsSectionOptions() {
+  const typeSel    = document.getElementById("id_ths_type");
+  const sectionSel = document.getElementById("id_ths_section");
+  if (!typeSel || !sectionSel) return;
+
+  const allowed = THS_SECTIONS_BY_TYPE[typeSel.value] || [];
+  let currentStillValid = false;
+
+  Array.from(sectionSel.options).forEach(opt => {
+    if (!opt.value) return;
+    const show = allowed.includes(opt.value);
+    opt.hidden   = !show;
+    opt.disabled = !show;
+    if (show && opt.value === sectionSel.value) currentStillValid = true;
+  });
+
+  if (!currentStillValid) sectionSel.value = "";
+}
+
+document.getElementById("id_ths_type")?.addEventListener("change", updateThsSectionOptions);
+
+const planSelect = document.getElementById("id_plan");
+applyPlanGroup(planSelect?.value || "");
+planSelect?.addEventListener("change", e => applyPlanGroup(e.target.value));
+updateThsSectionOptions();
+
+document.getElementById("add-recipient").addEventListener("click", function () {
+  const wrapper = document.getElementById("recipients-wrapper");
+  const totalForms = document.getElementById("id_interment_recipients-TOTAL_FORMS");
+  const count = parseInt(totalForms.value);
+  const html = document.getElementById("recipient-template").innerHTML.replace(/__prefix__/g, count);
+  wrapper.insertAdjacentHTML("beforeend", html);
+  totalForms.value = count + 1;
+});
+
+document.getElementById("recipients-wrapper").addEventListener("click", function (e) {
+  if (e.target.classList.contains("remove-recipient-btn")) {
+    const row = e.target.closest(".recipient-row");
+    const deleteCheckbox = row.querySelector('input[type="checkbox"][name$="-DELETE"]');
+    if (deleteCheckbox) {
+      deleteCheckbox.checked = true;
+      row.style.display = "none";
+    } else {
+      row.remove();
+      const totalForms = document.getElementById("id_interment_recipients-TOTAL_FORMS");
+      totalForms.value = parseInt(totalForms.value) - 1;
+    }
+  }
+});
+</script>
+
+<template id="recipient-template">
+  <div class="row mb-2 recipient-row align-items-center">
+    <div class="col-md-6">
+      {{ recipient_formset.empty_form.name }}
+    </div>
+    <div class="col-md-2">
+      <button type="button" class="btn btn-sm btn-danger remove-recipient-btn">Remove</button>
+    </div>
+  </div>
+</template>
+{% endblock %}

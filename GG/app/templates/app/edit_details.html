@@ -1,0 +1,245 @@
+{% extends 'app/base.html' %}
+{% load static %}
+
+{% block title %}Edit Client — Green Garden{% endblock %}
+{% block nav_records %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/addclient.css' %}">
+{% endblock %}
+
+{% block content %}
+<h3 class="mb-4">Edit Client</h3>
+
+{% if form.non_field_errors %}
+<div class="alert alert-danger">
+  {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+</div>
+{% endif %}
+
+<form method="POST" action="{% url 'edit-details' client.pk %}">
+{% csrf_token %}
+
+  <!-- PERSONAL INFORMATION -->
+  <div class="form-section">
+  <h5 class="mb-3">Personal Information</h5>
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <label>First Name <span class="text-danger">*</span></label>
+      {{ form.client_first_name }}
+      {% if form.client_first_name.errors %}<div class="text-danger small">{{ form.client_first_name.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="col-md-4">
+      <label>Middle Name</label>
+      {{ form.client_middle_name }}
+    </div>
+    <div class="col-md-4">
+      <label>Last Name <span class="text-danger">*</span></label>
+      {{ form.client_last_name }}
+      {% if form.client_last_name.errors %}<div class="text-danger small">{{ form.client_last_name.errors.0 }}</div>{% endif %}
+    </div>
+  </div>
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <label>Home Address <span class="text-danger">*</span></label>
+      {{ form.client_address }}
+      {% if form.client_address.errors %}<div class="text-danger small">{{ form.client_address.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label>Contact Number <span class="text-danger">*</span></label>
+      {{ form.client_contact_number }}
+      {% if form.client_contact_number.errors %}<div class="text-danger small">{{ form.client_contact_number.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label>Civil Status <span class="text-danger">*</span></label>
+      {{ form.client_civil_status }}
+      {% if form.client_civil_status.errors %}<div class="text-danger small">{{ form.client_civil_status.errors.0 }}</div>{% endif %}
+    </div>
+  </div>
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <label>Date of Birth <span class="text-danger">*</span></label>
+      {{ form.client_date_birth }}
+      {% if form.client_date_birth.errors %}<div class="text-danger small">{{ form.client_date_birth.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label>Religion <span class="text-danger">*</span></label>
+      {{ form.client_religion }}
+      {% if form.client_religion.errors %}<div class="text-danger small">{{ form.client_religion.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label>Occupation <span class="text-danger">*</span></label>
+      {{ form.client_occupation }}
+      {% if form.client_occupation.errors %}<div class="text-danger small">{{ form.client_occupation.errors.0 }}</div>{% endif %}
+    </div>
+    <div class="col-md-3">
+      <label>Employer Name <span class="text-danger">*</span></label>
+      {{ form.client_employer_name }}
+      {% if form.client_employer_name.errors %}<div class="text-danger small">{{ form.client_employer_name.errors.0 }}</div>{% endif %}
+    </div>
+  </div>
+  <div class="mb-3">
+    <label>Employer Address <span class="text-danger">*</span></label>
+    {{ form.client_employer_address }}
+    {% if form.client_employer_address.errors %}<div class="text-danger small">{{ form.client_employer_address.errors.0 }}</div>{% endif %}
+  </div>
+  </div>
+
+  <!-- SPOUSE -->
+  <div class="form-section" id="spouse-section">
+    <h5 class="mb-3">
+      Spouse Information
+      <small class="text-muted fw-normal fs-6 ms-2" id="spouse-hint"></small>
+    </h5>
+    <div class="row mb-3">
+      <div class="col-md-4"><label>Name of Spouse</label>{{ form.client_spouse_name }}</div>
+      <div class="col-md-3"><label>Date of Birth</label>{{ form.client_spouse_date_birth }}</div>
+      <div class="col-md-3"><label>Occupation</label>{{ form.client_spouse_occupation }}</div>
+      <div class="col-md-2"><label>Employer</label>{{ form.client_spouse_employer }}</div>
+    </div>
+  </div>
+
+  <!-- GOVERNMENT ISSUED IDs -->
+  <div class="form-section">
+    <h5 class="mb-1">Government Issued IDs</h5>
+    <p class="text-muted small mb-3">
+      Add or edit this client's government-issued IDs. You can add more than one.
+    </p>
+
+    {{ government_id_formset.management_form }}
+    {% if government_id_formset.non_form_errors %}
+      <div class="alert alert-danger">
+        {% for error in government_id_formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+      </div>
+    {% endif %}
+
+    <div id="government-ids-wrapper">
+      {% for gform in government_id_formset %}
+      <div class="row mb-2 government-id-row align-items-end">
+        {% for hidden in gform.hidden_fields %}{{ hidden }}{% endfor %}
+
+        <div class="col-md-4">
+          <label class="form-label small">ID Type</label>
+          {{ gform.id_type }}
+          {% if gform.id_type.errors %}<div class="text-danger small">{{ gform.id_type.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-4 d-none id-type-other-wrapper">
+          <label class="form-label small">Specify ID Type</label>
+          {{ gform.id_type_other }}
+          {% if gform.id_type_other.errors %}<div class="text-danger small">{{ gform.id_type_other.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label small">ID Number</label>
+          {{ gform.id_number }}
+          {% if gform.id_number.errors %}<div class="text-danger small">{{ gform.id_number.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-1 d-flex align-items-end">
+          {% if gform.instance.pk %}<span style="display:none">{{ gform.DELETE }}</span>{% endif %}
+          <button type="button" class="btn btn-sm btn-danger remove-government-id-btn w-100">Remove</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="add-government-id" class="btn btn-secondary mt-2">+ Add Another ID</button>
+  </div>
+
+  <!-- BENEFICIARIES -->
+  <div class="form-section mb-4">
+    <h5 class="mb-3">Beneficiaries</h5>
+    {{ beneficiary_formset.management_form }}
+    {% if beneficiary_formset.non_form_errors %}
+      <div class="alert alert-danger">
+        {% for error in beneficiary_formset.non_form_errors %}<div>{{ error }}</div>{% endfor %}
+      </div>
+    {% endif %}
+    <div id="beneficiaries-wrapper">
+      {% for bform in beneficiary_formset %}
+      <div class="row mb-2 beneficiary-row align-items-end">
+        {% for hidden in bform.hidden_fields %}{{ hidden }}{% endfor %}
+
+        <div class="col-md-5 beneficiary-name-col">
+          <label class="form-label small">Name</label>
+          {{ bform.name }}
+          {% if bform.name.errors %}<div class="text-danger small">{{ bform.name.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-5 beneficiary-rel-col">
+          <label class="form-label small">Relationship</label>
+          {{ bform.relationship }}
+          {% if bform.relationship.errors %}<div class="text-danger small">{{ bform.relationship.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-4 d-none beneficiary-specify-wrapper">
+          <label class="form-label small">Specify Relationship</label>
+          {{ bform.specify_relationship }}
+          {% if bform.specify_relationship.errors %}<div class="text-danger small">{{ bform.specify_relationship.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="col-md-2 d-flex align-items-end">
+          {% if bform.instance.pk %}<span style="display:none">{{ bform.DELETE }}</span>{% endif %}
+          <button type="button" class="btn btn-danger remove-btn w-100">Remove</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <button type="button" id="add-beneficiary" class="btn btn-secondary mt-2">+ Add Beneficiary</button>
+  </div>
+
+  <div class="text-end mb-5">
+    <a href="{% url 'records' %}" class="btn btn-secondary px-4">Cancel</a>
+    <button type="submit"
+            class="btn btn-primary px-4"
+            onclick="return requireRole('accounting_staff', 'Only Accounting Staff can update client records.')">
+      Update Client
+    </button>
+  </div>
+</form>
+
+<!-- ── Templates for newly-added rows ──────────────────────────────── -->
+<template id="beneficiary-template">
+  <div class="row mb-2 beneficiary-row align-items-end">
+    <div class="col-md-5 beneficiary-name-col">
+      <label class="form-label small">Name</label>
+      {{ beneficiary_formset.empty_form.name }}
+    </div>
+    <div class="col-md-5 beneficiary-rel-col">
+      <label class="form-label small">Relationship</label>
+      {{ beneficiary_formset.empty_form.relationship }}
+    </div>
+    <div class="col-md-4 d-none beneficiary-specify-wrapper">
+      <label class="form-label small">Specify Relationship</label>
+      {{ beneficiary_formset.empty_form.specify_relationship }}
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button type="button" class="btn btn-danger remove-btn w-100">Remove</button>
+    </div>
+  </div>
+</template>
+
+<template id="government-id-template">
+  <div class="row mb-2 government-id-row align-items-end">
+    <div class="col-md-4">
+      <label class="form-label small">ID Type</label>
+      {{ government_id_formset.empty_form.id_type }}
+    </div>
+    <div class="col-md-4 d-none id-type-other-wrapper">
+      <label class="form-label small">Specify ID Type</label>
+      {{ government_id_formset.empty_form.id_type_other }}
+    </div>
+    <div class="col-md-3">
+      <label class="form-label small">ID Number</label>
+      {{ government_id_formset.empty_form.id_number }}
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+      <button type="button" class="btn btn-sm btn-danger remove-government-id-btn w-100">Remove</button>
+    </div>
+  </div>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/client.js' %}"></script>
+{% endblock %}

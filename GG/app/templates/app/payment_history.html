@@ -1,0 +1,534 @@
+{% extends 'app/base.html' %}
+{% load humanize %}
+
+{% block title %}Payment History — {{ client.full_name }}{% endblock %}
+{% block nav_records %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .ledger-header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px; }
+  .ledger-title { font-weight: bold; text-transform: uppercase; text-align: center; font-size: 1.1rem; margin-bottom: 5px; }
+  .ledger-subtitle { text-align: center; font-style: italic; font-size: 0.9rem; margin-bottom: 15px; }
+  .ledger-info-label { font-weight: bold; font-size: 0.8rem; min-width: 110px; display: inline-block; }
+  .ledger-info-value { font-size: 0.85rem; border-bottom: 1px dotted #ccc; min-width: 150px; display: inline-block; }
+  .location-grid { font-size: 0.85rem; line-height: 1.6; }
+  .location-grid strong { font-size: 0.75rem; text-transform: uppercase; color: #6c757d; }
+  .pa-la-block { font-size: 0.85rem; margin-bottom: 10px; text-align: right; }
+  .pa-la-label { font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 6px; }
+  .pa-la-value { display: inline-block; border-bottom: 1.5px solid #000; min-width: 130px; padding: 1px 8px; text-align: center; font-weight: 600; color: #000; }
+  @media print { .pa-la-value { border-bottom: 1.5px solid #000 !important; } }
+  .price-table th, .price-table td { font-size: 0.78rem; padding: 3px 6px; }
+
+  .ledger-table-custom {
+    width: 100%; border-collapse: collapse;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 0.85rem; color: #000; background: #fff;
+  }
+  .ledger-table-custom th,
+  .ledger-table-custom td {
+    border: 1px solid #000; padding: 4px 6px; vertical-align: middle;
+  }
+  .ledger-table-custom th {
+    text-align: center; font-weight: bold; font-size: 0.75rem;
+    text-transform: uppercase; background-color: transparent;
+  }
+  .ledger-table-custom td.text-end { text-align: right; }
+  .ledger-table-custom td.text-center { text-align: center; }
+  .ledger-table-custom th.group-header { border-bottom: 2px solid #000; }
+  .ledger-table-custom tfoot td {
+    font-weight: bold; background-color: transparent; border-top: 2px solid #000;
+  }
+
+  .ledger-payment-row > td {
+    background-color: #f1f5f9; color: #475569; font-size: 0.74rem;
+    border-top: none; padding-top: 2px; padding-bottom: 2px;
+  }
+  .ledger-payment-row > td:first-child { padding-left: 22px; }
+  .ledger-payment-row > td.text-success { color: #0a3622 !important; }
+
+  .ledger-overdue-row > td {
+    background-color: #fff3cd; color: #664d03; font-weight: 600;
+    font-style: italic; border-top: none;
+    padding-top: 2px; padding-bottom: 2px;
+  }
+  .ledger-overdue-row > td:first-child { padding-left: 22px; }
+  .ledger-overdue-row > td .overdue-badge {
+    display: inline-block; background: #dc3545; color: #fff;
+    font-size: 0.6rem; font-weight: 700; padding: 1px 6px;
+    border-radius: 4px; letter-spacing: 0.5px;
+    font-style: normal; margin-left: 6px;
+  }
+
+  .ledger-table-custom tr.is-covered > td {
+    background-color: #f0fdf4;
+  }
+
+  @media print {
+    @page { size: landscape; margin: 10mm; }
+    .no-print, .topbar, .sidebar, .sidebar-overlay, .btn, nav, form { display: none !important; }
+    .content { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    .ledger-table-custom th { background-color: #e0e0e0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .ledger-table-custom tr.is-covered > td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+  <h4 class="mb-0">Payment History</h4>
+  <div class="d-flex gap-2">
+    <a href="{% url 'export-payment-history' client.pk %}{% if request.GET.plan %}?plan={{ request.GET.plan }}{% endif %}"
+       class="btn btn-outline-success btn-sm">📥 Export Excel</a>
+    <a href="{% url 'add-payment' client.pk %}" class="btn btn-secondary btn-sm">← Back to Summary</a>
+  </div>
+</div>
+
+<div class="print-only mb-3">
+  <h5>Green Garden — Installment Sales Receivable Ledger</h5>
+  <small>Printed: <span id="pay-print-date"></span></small><hr>
+</div>
+
+<!-- TOP HEADER -->
+<div class="card shadow-sm mb-4">
+<div class="card-body ledger-header">
+  <div class="ledger-title">GREEN GARDEN, INC.</div>
+  <div class="ledger-subtitle">INSTALLMENT SALES RECEIVABLE LEDGER</div>
+
+  <div class="row">
+    <div class="col-md-4">
+      <div class="mb-1"><span class="ledger-info-label">NAME:</span> <span class="ledger-info-value">{{ client.full_name|upper }}</span></div>
+      <div class="mb-1"><span class="ledger-info-label">ADDRESS:</span> <span class="ledger-info-value">{{ client.client_address }}</span></div>
+      <div class="mb-1"><span class="ledger-info-label">CONTACT NO:</span> <span class="ledger-info-value">{{ client.client_contact_number }}</span></div>
+      <div class="mb-1"><span class="ledger-info-label">LOT DESCRIPTION:</span> <span class="ledger-info-value">{{ client_status.plan }}</span></div>
+
+      <div class="mb-1 mt-2">
+        <span class="ledger-info-label">LOCATION:</span>
+        <div class="mt-1 ps-2 border-start border-2 location-grid">
+          {% if client_status.plan == "THS" %}
+            <div class="row">
+              <div class="col-6"><strong>Type:</strong> {{ client_status.ths_type|default:"—" }}</div>
+              <div class="col-6"><strong>Section:</strong> {{ client_status.ths_section|default:"—" }}</div>
+            </div>
+            <div class="row">
+              <div class="col-6"><strong>Level:</strong> {{ client_status.column_level|default:"—" }}</div>
+              <div class="col-6"><strong>Column:</strong> {{ client_status.ths_column|default:"—" }}</div>
+            </div>
+          {% elif client_status.plan == "THTC" %}
+            <div class="row">
+              <div class="col-6"><strong>Section:</strong> {{ client_status.section|default:"—" }}</div>
+              <div class="col-6"><strong>Level:</strong> {{ client_status.column_level|default:"—" }}</div>
+            </div>
+            <div class="row"><div class="col-6"><strong>Column:</strong> {{ client_status.ths_column|default:"—" }}</div></div>
+          {% elif client_status.plan == "TCT A/R" %}
+            <div class="row">
+              <div class="col-6"><strong>Type:</strong> {{ client_status.columbarium_type|default:"—" }}</div>
+              <div class="col-6"><strong>Level:</strong> {{ client_status.column_level|default:"—" }}</div>
+            </div>
+            <div class="row">
+              <div class="col-6"><strong>Column:</strong> {{ client_status.ths_column|default:"—" }}</div>
+              <div class="col-6"><strong>Tomb No:</strong> {{ client_status.tomb_number|default:"—" }}</div>
+            </div>
+            <div class="row"><div class="col-6"><strong>L.A. No:</strong> {{ client_status.la_number|default:"—" }}</div></div>
+          {% else %}
+            <div class="row">
+              <div class="col-3"><strong>Phase:</strong> {{ client_status.phase|default:"—" }}</div>
+              <div class="col-3"><strong>Block:</strong> {{ client_status.block|default:"—" }}</div>
+              <div class="col-3"><strong>Sec:</strong> {{ client_status.section|default:"—" }}</div>
+              <div class="col-3"><strong>Lot No:</strong> {{ client_status.lot_number|default:"—" }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="mb-1"><span class="ledger-info-label">DATE OF PURCHASE:</span> <span class="ledger-info-value">{{ client_status.start_date|date:"F d, Y" }}</span></div>
+      <div class="mb-1"><span class="ledger-info-label">TERMS:</span> <span class="ledger-info-value">{{ client_status.duration }} months</span></div>
+      <div class="mb-1"><span class="ledger-info-label">INSTALLMENT DUE:</span> <span class="ledger-info-value">₱{{ client_status.total_monthly_installment_display|floatformat:0|intcomma }}</span></div>
+      <div class="mb-1"><span class="ledger-info-label">DUE DATE:</span> <span class="ledger-info-value">{{ client_status.due_day_display }}</span></div>
+      <div class="mb-1">
+        <span class="ledger-info-label">MATURITY DATE:</span>
+        <span class="ledger-info-value">
+          {% if client_status.maturity_date %}{{ client_status.maturity_date|date:"F Y" }}{% else %}—{% endif %}
+        </span>
+      </div>
+      <div class="mb-1"><span class="ledger-info-label">SURCHARGE / MONTH:</span> <span class="ledger-info-value">{{ client_status.penalty_rate }}%</span></div>
+      <div class="mb-1"><span class="ledger-info-label">SALES ASSOCIATE:</span> <span class="ledger-info-value">{{ client_status.sales_agent|default:"—" }}</span></div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="pa-la-block">
+        <span class="pa-la-label">
+          {% if client_status.plan == "TCT A/R" %}L.A. NO.:{% else %}P.A. NO.:{% endif %}
+        </span>
+        <span class="pa-la-value">
+          {% if client_status.plan == "TCT A/R" %}
+            {{ client_status.la_number|default:"—" }}
+          {% else %}
+            {{ client_status.pa_number|default:"—" }}
+          {% endif %}
+        </span>
+      </div>
+
+      <table class="table table-sm table-borderless price-table" style="font-size:0.78rem;">
+        <thead>
+          <tr class="border-bottom">
+            <th></th><th class="text-end">LOT</th><th class="text-end">P-CARE</th><th class="text-end">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="fw-bold">PRICE</td>
+            <td class="text-end fw-bold">₱{{ price_table.price_lot|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.price_pcare|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.price_total|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="fw-bold">DOWNPAYMENT</td>
+            <td class="text-end fw-bold">₱{{ price_table.dp_lot|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.dp_pcare|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.dp_total|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="fw-bold">BALANCE</td>
+            <td class="text-end fw-bold">₱{{ price_table.bal_lot|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.bal_pcare|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.bal_total|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr>
+            <td class="fw-bold">INTEREST (____%)</td>
+            <td class="text-end">₱{{ price_table.int_lot|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.int_pcare|floatformat:2|intcomma }}</td>
+            <td class="text-end">₱{{ price_table.int_total|floatformat:2|intcomma }}</td>
+          </tr>
+          <tr class="border-top">
+            <td class="fw-bold">TOTAL BALANCE</td>
+            <td class="text-end fw-bold">₱{{ price_table.final_lot|floatformat:2|intcomma }}</td>
+            <td class="text-end fw-bold">₱{{ price_table.final_pcare|floatformat:2|intcomma }}</td>
+            <td class="text-end fw-bold">₱{{ price_table.final_total|floatformat:2|intcomma }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+{% if all_statuses.count > 1 %}
+<div class="card shadow-sm mb-4 no-print"><div class="card-body">
+  <h6 class="mb-3 text-muted small text-uppercase fw-semibold">Select Plan</h6>
+  <div class="d-flex flex-wrap gap-2">
+    {% for s in all_statuses %}
+    <a href="?plan={{ s.pk }}"
+       class="btn btn-sm plan-tab
+         {% if s.pk == client_status.pk %}
+           {% if s.is_cancelled %}btn-danger active-tab
+           {% elif s.status %}btn-success active-tab
+           {% else %}btn-secondary active-tab{% endif %}
+         {% else %}
+           {% if s.is_cancelled %}btn-outline-danger
+           {% elif s.status %}btn-outline-success
+           {% else %}btn-outline-secondary{% endif %}
+         {% endif %}">
+      {{ s.plan }}
+      {% if s.is_cancelled %}<span class="ms-1">✕ Cancelled</span>
+      {% elif s.status %}<span class="ms-1">● Active</span>
+      {% else %}<span class="ms-1">✓ Completed</span>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div></div>
+{% endif %}
+
+<!-- MAIN LEDGER TABLE -->
+<div class="card shadow-sm">
+<div class="card-body">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      Installment Sales Receivable Ledger
+      <span class="badge {% if client_status.is_cancelled %}bg-danger{% elif client_status.status %}bg-success{% else %}bg-secondary{% endif %}"
+            id="plan-status-badge">
+        {% if client_status.is_cancelled %}Cancelled{% elif client_status.status %}Active{% else %}Completed{% endif %}
+      </span>
+    </h5>
+    {% if not client_status.is_cancelled and client_status.status %}
+    <button class="btn btn-success no-print" id="add-payment-btn">+ Add Payment</button>
+    {% endif %}
+  </div>
+
+  <div class="table-responsive">
+  <table class="ledger-table-custom mb-0" style="min-width: 1400px;">
+    <thead>
+      <tr>
+        <th rowspan="2">DATE</th>
+        <th rowspan="2">INST. NO.</th>
+        <th rowspan="2">C.S.I. NO.</th>
+        <th colspan="2" class="group-header">INSTALLMENT DUE</th>
+        <th rowspan="2">AMOUNT PAID</th>
+        <th colspan="4" class="group-header">LOT</th>
+        <th colspan="3" class="group-header">PERPETUAL CARE</th>
+        <th rowspan="2">TOTAL BALANCE</th>
+      </tr>
+      <tr>
+        <th>LOT</th>
+        <th>P-CARE</th>
+        <th>PENALTY CHARGES</th>
+        <th>PAYMENT CHARGES</th>
+        <th>INSTALL. DUE</th>
+        <th>BALANCE</th>
+        <th>PAYMENT CHARGES</th>
+        <th>INSTALL. DUE</th>
+        <th>BALANCE</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in ledger_rows %}
+      <tr class="{% if row.kind == 'payment' %}ledger-payment-row{% elif row.is_silent_cover %}is-covered{% elif not row.payment.is_paid %}text-muted{% endif %}">
+        <td class="text-nowrap">
+          {{ row.date|date:"M d, Y"|default:"—" }}
+        </td>
+        <td class="text-center">{{ row.installment_no|default:"—" }}</td>
+        <td class="text-center">{{ row.csi_number|default:"—" }}</td>
+
+        <td class="text-end">
+          {% if row.kind == 'schedule' and row.lot_amount and row.lot_amount > 0 %}
+            ₱{{ row.lot_amount|floatformat:0|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+        <td class="text-end">
+          {% if row.kind == 'schedule' and row.pcare_amount and row.pcare_amount > 0 %}
+            ₱{{ row.pcare_amount|floatformat:0|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+
+        <td class="text-end fw-semibold">
+          {% if row.is_silent_cover %}
+            —
+          {% elif row.amount_paid > 0 %}
+            <span class="text-success">₱{{ row.amount_paid|floatformat:2|intcomma }}</span>
+          {% else %}—{% endif %}
+        </td>
+
+        <!-- PENALTY CHARGES (Empty for Payment Rows) -->
+        <td class="text-end {% if row.kind == 'schedule' and row.penalty_charges > 0 %}text-danger{% endif %}">
+          {% if row.kind == 'schedule' and row.penalty_charges > 0 %}
+            {{ row.penalty_charges|floatformat:2|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+
+        <td class="text-end">
+          {% if row.kind == 'payment' and row.payment_charges > 0 %}
+            {{ row.payment_charges|floatformat:2|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+
+        <td class="text-end">
+          {% if row.kind == 'payment' %}
+            {% if row.payment.overpayment and row.payment.overpayment > 0 %}
+              <span class="text-muted">({{ row.payment.overpayment|floatformat:0|intcomma }})</span>
+            {% elif row.installment_due and row.installment_due > 0 %}
+              ₱{{ row.installment_due|floatformat:0|intcomma }}
+            {% else %}—{% endif %}
+          {% elif row.kind == 'schedule' %}
+            ₱{{ row.installment_due|floatformat:0|intcomma }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
+        <td class="text-end fw-semibold">
+          {% if row.kind == 'payment' %}
+            ₱{{ row.lot_balance|floatformat:2|intcomma }}
+          {% elif row.is_first_schedule %}
+            ₱{{ row.lot_balance|floatformat:2|intcomma }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
+        <td class="text-end">
+          {% if row.kind == 'payment' and row.pc_payment_charges > 0 %}
+            {{ row.pc_payment_charges|floatformat:2|intcomma }}
+          {% else %}—{% endif %}
+        </td>
+
+        <td class="text-end">
+          {% if row.kind == 'payment' %}
+            {% if row.pc_installment_due and row.pc_installment_due > 0 %}
+              ₱{{ row.pc_installment_due|floatformat:0|intcomma }}
+            {% else %}—{% endif %}
+          {% elif row.kind == 'schedule' %}
+            ₱{{ row.pc_installment_due|floatformat:0|intcomma }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
+        <td class="text-end fw-semibold">
+          {% if row.kind == 'payment' %}
+            ₱{{ row.pc_balance|floatformat:2|intcomma }}
+          {% elif row.is_first_schedule %}
+            ₱{{ row.pc_balance|floatformat:2|intcomma }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+
+        <td class="text-end fw-bold">
+          {% if row.kind == 'payment' %}
+            ₱{{ row.total_balance|floatformat:2|intcomma }}
+          {% elif row.is_first_schedule %}
+            ₱{{ row.total_balance|floatformat:2|intcomma }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="14" class="text-center text-muted py-4">No ledger entries yet.</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5" class="text-end">TOTALS:</td>
+        <td class="text-end text-success">₱{{ client_status.paid_balance|floatformat:2|intcomma }}</td>
+        <td class="text-end text-danger">—</td>
+        <td class="text-end">—</td>
+        <td class="text-end">—</td>
+        <td class="text-end">—</td>
+        <td class="text-end">—</td>
+        <td class="text-end">—</td>
+        <td class="text-end">₱{{ client_status.balance|floatformat:2|intcomma }}</td>
+        <td class="text-end">₱{{ client_status.total_balance|floatformat:2|intcomma }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  </div>
+</div>
+</div>
+
+<div id="payment-config"
+     data-client-status-id="{{ client_status.pk }}"
+     data-remaining-balance="{{ client_status.balance|stringformat:'f' }}"
+     style="display:none"></div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="payModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header">
+    <h5 class="modal-title">Record Payment</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    <p class="mb-1"><strong>Plan:</strong> {{ client_status.plan }}</p>
+    <p class="mb-3 text-muted small">
+      Remaining balance: ₱<span id="modal-balance-hint">{{ client_status.balance|floatformat:2|intcomma }}</span>
+    </p>
+
+    <label class="form-label">Payment Date <span class="text-danger">*</span></label>
+    <input type="date" id="datePaidInput" class="form-control mb-2" required>
+    <div class="form-text mb-3">
+      You can backdate this payment if it was received earlier but not yet recorded.
+    </div>
+
+    <label class="form-label">Amount Paid <span class="text-danger">*</span></label>
+    <input type="number" id="amountInput" class="form-control mb-2" placeholder="e.g. 2000.00" min="0.01" step="0.01">
+    <div class="form-text mb-2">
+      Due {{ client_status.due_day_display|lower }} ·
+      monthly installment: ₱{{ client_status.total_monthly_installment_display|floatformat:0|intcomma }}<br>
+      A larger amount will cover multiple months automatically.
+    </div>
+
+    <label class="form-label">Penalty Charges</label>
+    <input type="number" id="penaltyInput" class="form-control mb-2" placeholder="e.g. 58.00" min="0" step="0.01" value="0">
+
+    <label class="form-label">Payment Charges</label>
+    <input type="number" id="paymentChargeInput" class="form-control mb-2" placeholder="e.g. 0.00" min="0" step="0.01" value="0">
+
+    <label class="form-label">C.S.I. Number</label>
+    <input type="text" id="csiInput" class="form-control mb-2" placeholder="e.g. 17651" maxlength="50">
+
+    <label class="form-label">Note <small class="text-muted">(optional)</small></label>
+    <input type="text" id="noteInput" class="form-control mb-3" placeholder="e.g. August partial payment">
+
+    <label class="form-label">Enter 4-digit PIN to confirm</label>
+    <input type="password" id="pinInput" class="form-control" placeholder="Enter PIN" autocomplete="off" inputmode="numeric" maxlength="4">
+    <div id="pinError" class="text-danger small mt-2 d-none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button class="btn btn-success" id="confirmPayBtn">Confirm Payment</button>
+  </div>
+</div></div></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById("pay-print-date").textContent = new Date().toLocaleString();
+
+const _cfg = document.getElementById("payment-config");
+const CLIENT_STATUS_ID = parseInt(_cfg.dataset.clientStatusId, 10);
+const REMAINING_BALANCE = parseFloat(_cfg.dataset.remainingBalance) || 0;
+
+const payModal = new bootstrap.Modal(document.getElementById("payModal"));
+
+document.getElementById("add-payment-btn")?.addEventListener("click", function () {
+  if (!requireRole('accounting_staff', 'Only Accounting Staff can record payments.')) return;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById("datePaidInput").value = `${yyyy}-${mm}-${dd}`;
+
+  document.getElementById("amountInput").value = "";
+  document.getElementById("penaltyInput").value = "0";
+  document.getElementById("paymentChargeInput").value = "0";
+  document.getElementById("csiInput").value = "";
+  document.getElementById("noteInput").value = "";
+  document.getElementById("pinInput").value = "";
+  document.getElementById("pinError").classList.add("d-none");
+  const cb = document.getElementById("confirmPayBtn");
+  cb.disabled = false; cb.textContent = "Confirm Payment";
+  payModal.show();
+});
+
+document.getElementById("confirmPayBtn").addEventListener("click", function () {
+  const amount = document.getElementById("amountInput").value;
+  const datePaid = document.getElementById("datePaidInput").value;
+  const penalty = document.getElementById("penaltyInput").value || "0";
+  const paymentCharge = document.getElementById("paymentChargeInput").value || "0";
+  const csi = document.getElementById("csiInput").value;
+  const note = document.getElementById("noteInput").value;
+  const pin = document.getElementById("pinInput").value;
+  const errEl = document.getElementById("pinError");
+
+  if (!amount || parseFloat(amount) <= 0) { errEl.textContent = "Please enter a valid amount."; errEl.classList.remove("d-none"); return; }
+  if (!datePaid) { errEl.textContent = "Please select the payment date."; errEl.classList.remove("d-none"); return; }
+  if (!pin) { errEl.textContent = "Please enter your PIN."; errEl.classList.remove("d-none"); return; }
+  errEl.classList.add("d-none");
+
+  const btn = this; btn.disabled = true; btn.textContent = "Processing…";
+
+  fetch(window.location.href, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRFToken": "{{ csrf_token }}" },
+    body: `client_status_id=${CLIENT_STATUS_ID}`
+        + `&amount=${encodeURIComponent(amount)}`
+        + `&date_paid=${encodeURIComponent(datePaid)}`
+        + `&penalty=${encodeURIComponent(penalty)}`
+        + `&payment_charge=${encodeURIComponent(paymentCharge)}`
+        + `&csi_number=${encodeURIComponent(csi)}`
+        + `&note=${encodeURIComponent(note)}`
+        + `&pin=${encodeURIComponent(pin)}`,
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) { location.reload(); }
+    else { errEl.textContent = data.error || "Payment failed."; errEl.classList.remove("d-none"); btn.disabled = false; btn.textContent = "Confirm Payment"; }
+  })
+  .catch(() => { errEl.textContent = "Network error. Please try again."; errEl.classList.remove("d-none"); btn.disabled = false; btn.textContent = "Confirm Payment"; });
+});
+</script>
+{% endblock %}

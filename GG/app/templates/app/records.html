@@ -1,0 +1,332 @@
+{% extends 'app/base.html' %}
+
+{% block title %}Client Records — Green Garden{% endblock %}
+{% block nav_records %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4>Client Records</h4>
+  <div class="d-flex gap-2 no-print">
+    <a href="{% url 'export-records' %}?{{ request.GET.urlencode }}"
+       id="export-records-link"
+       class="btn btn-outline-success">📥 Export Excel</a>
+    <button type="button" class="btn btn-outline-secondary" onclick="window.print()">🖨️ Print</button>
+    {% if is_admin or is_accounting_staff %}
+    <a href="{% url 'add-client' %}" class="btn btn-primary">+ Add New Client</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Print header — stable DOM nodes, updated via textContent (no flicker) -->
+<div class="print-only mb-3">
+  <h5>Green Garden — Client Records</h5>
+  <small>Printed: <span id="records-print-date"></span></small>
+  <div class="small text-muted mt-1">
+    <strong>Search:</strong>
+    <span id="records-print-query">{% if query %}"{{ query }}"{% else %}None (showing all clients){% endif %}</span>
+  </div>
+  <div class="small text-muted">
+    Total records: <span id="records-total-count">{{ client|length }}</span>
+  </div>
+  <hr>
+</div>
+
+<!-- Search — only input + Search button. No X button, no spinner.
+     Stable layout → zero flicker while typing. -->
+<form method="GET" class="mb-3 no-print" id="records-search-form" style="max-width:520px;" autocomplete="off">
+  <div class="input-group">
+    <input type="text"
+           name="q"
+           id="records-search-input"
+           class="form-control"
+           placeholder="Search by name, contact, plan, P.A./L.A. no.…"
+           value="{{ query }}"
+           autocomplete="off"
+           spellcheck="false">
+    <button class="btn btn-primary" type="submit" id="records-search-btn">Search</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-hover table-bordered" id="clientTable">
+  <thead class="table-dark">
+    <tr>
+      <th>ID</th>
+      <th>P.A. / L.A. No.</th>
+      <th>Full Name</th>
+      <th>Contact</th>
+      <th>Civil Status</th>
+      <th>Date of Birth</th>
+      <th>Plan</th>
+      <th>Status</th>
+      <th class="no-print">Actions</th>
+    </tr>
+  </thead>
+  <tbody id="clientTableBody">
+    {% include 'app/partials/records_tbody.html' %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+
+
+{% block modals %}
+<!-- DELETE CONFIRMATION MODAL -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog">
+<div class="modal-content">
+  <div class="modal-header bg-danger text-white">
+    <h5 class="modal-title">Confirm Deletion</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    <p>You are about to permanently delete:</p>
+    <p class="fw-bold fs-5" id="delete-client-name"></p>
+    <p class="text-danger small">
+      This will also remove all beneficiaries, plan, and payment records.
+      This action <strong>cannot be undone</strong>.
+    </p>
+    <label class="form-label mt-2">Enter 4-digit PIN to confirm</label>
+    <input type="password" id="deletePinInput" class="form-control"
+           placeholder="Enter PIN" autocomplete="off"
+           inputmode="numeric" maxlength="4">
+    <div id="deletePinError" class="text-danger small mt-2 d-none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button class="btn btn-danger" id="confirmDeleteBtn">Delete Client</button>
+  </div>
+</div>
+</div>
+</div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+document.getElementById("records-print-date").textContent = new Date().toLocaleString();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIVE SEARCH — debounced server-side AJAX
+   --------------------------------------------------------------------------
+   Layout stability contract:
+   • The <input>, <form>, and Search button are NEVER destroyed or replaced.
+   • No sibling element inside .input-group is toggled on keystroke / fetch.
+   • The only DOM node that changes on fetch is <tbody> (results) + textContent
+     of the print-header spans (which are .print-only and hidden on screen).
+   • Debounce: 300ms after last keystroke. Enter submits immediately.
+   • Escape clears input and re-searches immediately.
+   • URL is kept in sync via history.replaceState — bookmarkable / refreshable.
+   • Export Excel link and print-header count update live.
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  const form       = document.getElementById("records-search-form");
+  const input      = document.getElementById("records-search-input");
+  const tbody      = document.getElementById("clientTableBody");
+  const exportLink = document.getElementById("export-records-link");
+  const printQuery = document.getElementById("records-print-query");
+  const countEl    = document.getElementById("records-total-count");
+
+  if (!form || !input || !tbody) return;
+
+  const DEBOUNCE_MS = 300;
+  let debounceTimer = null;
+  let inflightCtrl  = null;
+  let lastQuery     = input.value.trim();
+
+  /* ── Print header update (textContent only — no innerHTML replacement) ─── */
+  function updatePrintHeader(q, count) {
+    if (printQuery) {
+      printQuery.textContent = q ? '"' + q + '"' : "None (showing all clients)";
+    }
+    if (countEl) {
+      countEl.textContent = count;
+    }
+  }
+
+  /* ── URL sync (silent, no reload) ───────────────────────────────────────── */
+  function updateUrl(q) {
+    const url = new URL(window.location.href);
+    if (q) {
+      url.searchParams.set("q", q);
+    } else {
+      url.searchParams.delete("q");
+    }
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  /* ── Export link sync (keeps ?q=… when exporting filtered results) ─────── */
+  function updateExportLink(q) {
+    const url = new URL(exportLink.href, window.location.origin);
+    if (q) {
+      url.searchParams.set("q", q);
+    } else {
+      url.searchParams.delete("q");
+    }
+    exportLink.href = url.toString();
+  }
+
+  /* ── Core fetch ─────────────────────────────────────────────────────────── */
+  function runSearch(q) {
+    // Cancel any in-flight request (superseded by newer keystrokes)
+    if (inflightCtrl) {
+      inflightCtrl.abort();
+      inflightCtrl = null;
+    }
+    inflightCtrl = new AbortController();
+    const ctrl   = inflightCtrl;
+
+    const url = new URL(window.location.href);
+    if (q) {
+      url.searchParams.set("q", q);
+    } else {
+      url.searchParams.delete("q");
+    }
+
+    fetch(url.toString(), {
+      method:  "GET",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      signal:  ctrl.signal,
+    })
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(data => {
+      if (!data.success) return;
+
+      // Only <tbody> is replaced — the search input is untouched.
+      tbody.innerHTML = data.html;
+
+      updatePrintHeader(data.query || "", data.count);
+      updateUrl(data.query || "");
+      updateExportLink(data.query || "");
+      lastQuery = data.query || "";
+
+      // Re-attach delete handlers to the freshly rendered buttons.
+      rebindDeleteHandlers();
+    })
+    .catch(err => {
+      if (err.name === "AbortError") return; // expected when superseded
+      console.error("[LiveSearch] Failed:", err);
+    })
+    .finally(() => {
+      if (ctrl === inflightCtrl) {
+        inflightCtrl = null;
+      }
+    });
+  }
+
+  /* ── Debounce ───────────────────────────────────────────────────────────── */
+  function scheduleSearch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      const q = input.value.trim();
+      if (q === lastQuery) return; // no-op if unchanged
+      runSearch(q);
+    }, DEBOUNCE_MS);
+  }
+
+  /* ── Event wiring ───────────────────────────────────────────────────────── */
+
+  // Every keystroke → debounced fetch. Never toggles layout-affecting elements.
+  input.addEventListener("input", scheduleSearch);
+
+  // Enter / Search button → skip debounce, search now.
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearTimeout(debounceTimer);
+    runSearch(input.value.trim());
+  });
+
+  // Escape → clear + search now.
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      input.value = "";
+      clearTimeout(debounceTimer);
+      runSearch("");
+    }
+  });
+
+  /* ── Delete-button rebinding (fresh rows after every AJAX swap) ────────── */
+  const deleteModal = new bootstrap.Modal(document.getElementById("deleteModal"));
+  let deleteTargetPk = null;
+
+  function rebindDeleteHandlers() {
+    tbody.querySelectorAll(".delete-btn").forEach(btn => {
+      btn.addEventListener("click", function () {
+        if (!requireRole('accounting_staff',
+            'Only Accounting Staff can delete client records.')) return;
+
+        deleteTargetPk = this.dataset.pk;
+        document.getElementById("delete-client-name").textContent = this.dataset.name;
+        document.getElementById("deletePinInput").value           = "";
+        document.getElementById("deletePinError").classList.add("d-none");
+        document.getElementById("confirmDeleteBtn").disabled      = false;
+        document.getElementById("confirmDeleteBtn").textContent   = "Delete Client";
+        deleteModal.show();
+      });
+    });
+  }
+
+  // Initial bind for rows that came with the page.
+  rebindDeleteHandlers();
+
+  /* ── Delete confirmation (bound once, uses outer deleteTargetPk) ───────── */
+  document.getElementById("confirmDeleteBtn").addEventListener("click", function () {
+    const pin   = document.getElementById("deletePinInput").value;
+    const errEl = document.getElementById("deletePinError");
+
+    if (!pin) {
+      errEl.textContent = "Please enter your PIN.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+
+    const btn = this;
+    btn.disabled    = true;
+    btn.textContent = "Deleting…";
+
+    fetch(`/delete-client/${deleteTargetPk}/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken":  "{{ csrf_token }}",
+      },
+      body: `pin=${encodeURIComponent(pin)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const row = document.getElementById(`client-row-${deleteTargetPk}`);
+        if (row) row.remove();
+        deleteModal.hide();
+
+        // If the table body is now empty, show the empty state.
+        const remaining = tbody.querySelectorAll("tr").length;
+        if (remaining === 0) {
+          tbody.innerHTML =
+            '<tr><td colspan="9" class="text-center text-muted py-4">No clients found.</td></tr>';
+        }
+
+        // Sync print header count.
+        const newCount = tbody.querySelectorAll('tr[id^="client-row-"]').length;
+        updatePrintHeader(lastQuery, newCount);
+      } else {
+        errEl.textContent = data.error || "Deletion failed.";
+        errEl.classList.remove("d-none");
+        btn.disabled    = false;
+        btn.textContent = "Delete Client";
+      }
+    })
+    .catch(() => {
+      errEl.textContent = "Network error. Please try again.";
+      errEl.classList.remove("d-none");
+      btn.disabled    = false;
+      btn.textContent = "Delete Client";
+    });
+  });
+})();
+</script>
+{% endblock %}

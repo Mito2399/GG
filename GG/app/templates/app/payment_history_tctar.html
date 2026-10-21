@@ -1,0 +1,969 @@
+{% extends 'app/base.html' %}
+{% load humanize %}
+
+{% block title %}TCT A/R Contract — {{ client.full_name }}{% endblock %}
+{% block nav_records %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ═══════════════════════════════════════════════════════════════════════
+     CONTRACT SHELL
+  ═══════════════════════════════════════════════════════════════════════ */
+  .contract-wrap {
+    max-width: 1180px;
+    margin: 0 auto 40px;
+    background: #fff;
+    border: 1px solid #d5d9e0;
+    border-radius: 10px;
+    padding: 0 0 32px;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    box-shadow: 0 6px 22px rgba(15, 23, 42, .08);
+    overflow: hidden;
+  }
+
+  .contract-banner {
+    background: linear-gradient(135deg, #2f3640 0%, #46505f 100%);
+    color: #fff;
+    padding: 18px 32px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .contract-banner .firm { font-size: 1.15rem; font-weight: 700; letter-spacing: 1.2px; }
+  .contract-banner .sub {
+    font-size: .78rem; opacity: .75; letter-spacing: 2px;
+    text-transform: uppercase; margin-top: 3px;
+  }
+  .contract-banner .stamp {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.25);
+    padding: 6px 14px; border-radius: 999px;
+    font-size: .78rem; font-weight: 600; letter-spacing: .5px;
+  }
+
+  /* ── TCT/A/R status pill ─────────────────────────────────────────── */
+  .tct-status-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 16px; border-radius: 999px;
+    font-size: .8rem; font-weight: 700; letter-spacing: .8px;
+    text-transform: uppercase; border: 1px solid transparent;
+  }
+  .tct-status-ACTIVE    { background: #d1e7dd; color: #0a3622; border-color: #a3cfbb; }
+  .tct-status-RENEWED   { background: #cfe2ff; color: #084298; border-color: #9ec5fe; }
+  .tct-status-EXPIRED   { background: #f8d7da; color: #58151c; border-color: #f1aeb5; }
+  .tct-status-CANCELLED { background: #e2e3e5; color: #41464b; border-color: #c8cbcf; }
+
+  .contract-body { padding: 28px 32px 0; }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     SECTION HEADINGS
+  ═══════════════════════════════════════════════════════════════════════ */
+  .section-header {
+    font-size: .82rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.4px; color: #2f3640; margin: 4px 0 18px;
+    padding-bottom: 8px; border-bottom: 2px solid #2f3640;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-header::before {
+    content: ''; display: inline-block; width: 4px; height: 16px;
+    background: #2d8cf0; border-radius: 2px; margin-right: 2px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     FIELD GRID
+  ═══════════════════════════════════════════════════════════════════════ */
+  .field-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    column-gap: 40px; row-gap: 2px; margin-bottom: 26px;
+  }
+  .field-row {
+    display: flex; align-items: flex-end; margin-bottom: 10px;
+    font-size: .88rem; min-height: 26px;
+  }
+  .field-label {
+    flex: 0 0 178px; font-weight: 700; color: #2f3640;
+    font-size: .74rem; letter-spacing: .6px;
+    text-transform: uppercase; padding-bottom: 2px;
+  }
+  .field-value {
+    flex: 1; border-bottom: 1.5px solid #2f3640;
+    padding: 0 8px 3px; min-height: 22px;
+    color: #0f172a; font-weight: 500; word-break: break-word;
+  }
+  .field-value-bare {
+    flex: 1; padding: 0 8px 3px; min-height: 22px;
+    color: #0f172a; font-weight: 500;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     MONEY TABLE
+  ═══════════════════════════════════════════════════════════════════════ */
+  .money-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    font-size: .9rem; margin-bottom: 26px;
+    border: 1px solid #d5d9e0; border-radius: 8px; overflow: hidden;
+  }
+  .money-table td { padding: 10px 16px; border-bottom: 1px solid #e8ecf1; }
+  .money-table tr:last-child td { border-bottom: none; }
+  .money-table td.money-label {
+    width: 65%; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; font-size: .76rem;
+    color: #46505f; background: #f8fafc;
+  }
+  .money-table td.money-value {
+    text-align: right; font-variant-numeric: tabular-nums;
+    font-weight: 600; color: #0f172a;
+  }
+  .money-table tr.grand td {
+    background: linear-gradient(90deg, #eafaf1 0%, #d7f2e4 100%);
+    font-weight: 700; font-size: 1rem; color: #0a3622;
+  }
+  .money-table tr.grand td.money-label { background: transparent; }
+
+  .balance-outstanding { color: #b02a37 !important; font-weight: 700; }
+  .balance-cleared     { color: #0a3622 !important; font-weight: 700; }
+  .balance-paid-amount { color: #0a3622; font-weight: 700; }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     VALIDITY CARD
+  ═══════════════════════════════════════════════════════════════════════ */
+  .validity-card {
+    border: 1px solid #d5d9e0; border-radius: 8px;
+    padding: 16px 20px; margin-bottom: 26px;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  }
+  .validity-card.expired  { background: linear-gradient(180deg,#fef2f2 0%,#ffffff 100%); border-color: #f1aeb5; }
+  .validity-card.renewed  { background: linear-gradient(180deg,#eff6ff 0%,#ffffff 100%); border-color: #9ec5fe; }
+  .validity-card.cancelled{ background: linear-gradient(180deg,#f3f4f6 0%,#ffffff 100%); border-color: #c8cbcf; }
+  .validity-card.active   { background: linear-gradient(180deg,#f0fdf4 0%,#ffffff 100%); border-color: #a3cfbb; }
+
+  .validity-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px dashed #e5e7eb;
+    font-size: .88rem;
+  }
+  .validity-row:last-child { border-bottom: none; }
+  .validity-row .lbl {
+    font-weight: 700; font-size: .74rem; letter-spacing: .6px;
+    text-transform: uppercase; color: #46505f;
+  }
+  .validity-row .val {
+    font-variant-numeric: tabular-nums; font-weight: 600; color: #0f172a;
+  }
+  .days-pill {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: .72rem; font-weight: 700;
+  }
+  .days-pill.ok      { background:#d1e7dd; color:#0a3622; }
+  .days-pill.warn    { background:#fff3cd; color:#664d03; }
+  .days-pill.danger  { background:#f8d7da; color:#58151c; }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BILLING TABLE
+  ═══════════════════════════════════════════════════════════════════════ */
+  .billing-table {
+    width: 100%; border-collapse: collapse; font-size: .78rem;
+    margin-top: 4px; border: 1.5px solid #2f3640;
+  }
+  .billing-table thead th {
+    background: #2f3640; color: #fff; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .8px;
+    font-size: .68rem; padding: 7px 6px;
+    text-align: center; border: 1px solid #2f3640;
+  }
+  .billing-table thead th.group-billing { background: #34495e; }
+  .billing-table thead th.group-payment { background: #2d8cf0; }
+  .billing-table thead th.group-renewal { background: #6f42c1; }
+  .billing-table tbody td {
+    padding: 8px 8px; border: 1px solid #d5d9e0;
+    vertical-align: middle; font-variant-numeric: tabular-nums;
+  }
+  .billing-table tbody td.center { text-align: center; }
+  .billing-table tbody td.money  { text-align: right; }
+  .billing-table tbody tr:nth-child(even) td { background: #f8fafc; }
+  .billing-table tbody tr.opening-row td {
+    background: #fff8e1; font-weight: 600; color: #5a4b00;
+  }
+  .billing-table tbody tr.totals-row td {
+    background: #eef4fb; font-weight: 700; color: #0f172a;
+    border-top: 2px solid #2f3640;
+  }
+  .billing-table tbody tr.totals-row td.outstanding { color: #b02a37; }
+  .billing-table .blank-row td { height: 26px; background: #fff; }
+
+  /* ── Renewal table ───────────────────────────────────────────────── */
+  .renewal-table {
+    width: 100%; border-collapse: collapse; font-size: .8rem;
+    border: 1.5px solid #6f42c1;
+  }
+  .renewal-table thead th {
+    background: #6f42c1; color: #fff; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .8px;
+    font-size: .68rem; padding: 8px 8px;
+    text-align: center; border: 1px solid #6f42c1;
+  }
+  .renewal-table tbody td {
+    padding: 8px 10px; border: 1px solid #e0d4f5;
+    vertical-align: middle;
+  }
+  .renewal-table tbody tr:nth-child(even) td { background: #faf6ff; }
+  .renewal-table tbody tr.active-row td {
+    background: #f0fdf4; font-weight: 600;
+  }
+  .renewal-table tbody td.center { text-align: center; }
+  .renewal-table tbody td.money  { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BADGES / PICKER
+  ═══════════════════════════════════════════════════════════════════════ */
+  .summary-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: .74rem; font-weight: 700;
+    letter-spacing: .6px; text-transform: uppercase;
+  }
+  .badge-active    { background: #d1e7dd; color: #0a3622; }
+  .badge-completed { background: #e2e3e5; color: #41464b; }
+  .badge-cancelled { background: #f8d7da; color: #58151c; }
+  .badge-renewed   { background: #cfe2ff; color: #084298; }
+  .badge-expired   { background: #f8d7da; color: #58151c; }
+
+  .plan-picker .btn { font-size: .78rem; padding: 5px 12px; }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     PRINT
+  ═══════════════════════════════════════════════════════════════════════ */
+  @media print {
+    .no-print { display: none !important; }
+    .contract-wrap { border: none; box-shadow: none; margin: 0; max-width: 100%; }
+    .contract-banner { background: #2f3640 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .billing-table thead th,
+    .renewal-table thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .money-table tr.grand td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .tct-status-pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    body.printing-contract #section-ledger   { display: none !important; }
+    body.printing-ledger   #section-contract { display: none !important; }
+
+    body:not(.printing-contract):not(.printing-ledger) #section-ledger { page-break-before: always; }
+  }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<!-- ═══════════════════════════════════════════════════════════════════════
+     TOOLBAR
+═══════════════════════════════════════════════════════════════════════ -->
+<div class="d-flex justify-content-between align-items-center mb-4 no-print flex-wrap gap-2">
+  <h4 class="mb-0">TCT A/R Contract</h4>
+
+  <div class="d-flex gap-2 flex-wrap">
+    <button type="button" class="btn btn-outline-primary btn-sm"
+            onclick="printSection('contract')">🖨️ Print Contract</button>
+    <button type="button" class="btn btn-outline-primary btn-sm"
+            onclick="printSection('ledger')">🖨️ Print Payment Ledger</button>
+
+    <a href="{% url 'export-payment-history' client.pk %}?plan={{ client_status.pk }}&section=contract"
+       class="btn btn-outline-success btn-sm">📥 Export Contract</a>
+    <a href="{% url 'export-payment-history' client.pk %}?plan={{ client_status.pk }}&section=ledger"
+       class="btn btn-outline-success btn-sm">📥 Export Payment Ledger</a>
+
+    <a href="{% url 'add-payment' client.pk %}" class="btn btn-secondary btn-sm">← Back to Summary</a>
+  </div>
+</div>
+
+<div class="print-only mb-3">
+  <h5>Green Garden, Inc. — TCT A/R Contract</h5>
+  <small>Printed: <span id="print-date"></span></small><hr>
+</div>
+
+{% if all_statuses.count > 1 %}
+<div class="card shadow-sm mb-4 no-print plan-picker"><div class="card-body">
+  <h6 class="mb-3 text-muted small text-uppercase fw-semibold">Select Plan</h6>
+  <div class="d-flex flex-wrap gap-2">
+    {% for s in all_statuses %}
+    <a href="?plan={{ s.pk }}"
+       class="btn
+         {% if s.pk == client_status.pk %}
+           {% if s.is_cancelled %}btn-danger
+           {% elif s.status %}btn-success
+           {% else %}btn-secondary{% endif %}
+         {% else %}
+           {% if s.is_cancelled %}btn-outline-danger
+           {% elif s.status %}btn-outline-success
+           {% else %}btn-outline-secondary{% endif %}
+         {% endif %}">
+      {{ s.plan }}
+      {% if s.is_cancelled %}✕{% elif s.status %}●{% else %}✓{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</div></div>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     CONTRACT WRAPPER
+═══════════════════════════════════════════════════════════════════════ -->
+<div class="contract-wrap">
+
+  <!-- Banner -->
+  <div class="contract-banner">
+    <div>
+      <div class="firm">GREEN GARDEN, INC.</div>
+      <div class="sub">TCT A/R Contract · Permanent Record</div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <div class="stamp">
+        <span>L.A. NO.</span>
+        <span style="font-weight:800;font-size:.9rem;">
+          {{ client_status.la_number|default:"—" }}
+        </span>
+      </div>
+      {% if renewal_status %}
+        <span class="tct-status-pill tct-status-{{ renewal_status }}">
+          {% if renewal_status == "ACTIVE" %}● Active
+          {% elif renewal_status == "RENEWED" %}↻ Renewed
+          {% elif renewal_status == "EXPIRED" %}⚠ Expired
+          {% elif renewal_status == "CANCELLED" %}✕ Cancelled
+          {% else %}{{ renewal_status }}{% endif %}
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="contract-body">
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SECTION A — CONTRACT
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div id="section-contract">
+
+      <div class="section-header">Purchaser's Information</div>
+
+      <div class="field-grid">
+        <div>
+          <div class="field-row">
+            <div class="field-label">DATE OF PURCHASE</div>
+            <div class="field-value">{{ client_status.start_date|date:"d-M-y"|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">NAME</div>
+            <div class="field-value">{{ client.full_name|upper }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">ADDRESS</div>
+            <div class="field-value">{{ client.client_address }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">CONTACT NO.</div>
+            <div class="field-value">{{ client.client_contact_number|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">MOBILE NO.</div>
+            <div class="field-value">{{ client.client_contact_number|default:"—" }}</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="field-row">
+            <div class="field-label">PRODUCT CLASSIFICATION</div>
+            <div class="field-value">{{ client_status.columbarium_type|default:"TCT Com. Vault" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">LOCATION</div>
+            <div class="field-value-bare">&nbsp;</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">BLOCK</div>
+            <div class="field-value">{{ client_status.block|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">SECTION</div>
+            <div class="field-value">{{ client_status.section|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">LEVEL</div>
+            <div class="field-value">{{ client_status.column_level|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">TOMB NO.</div>
+            <div class="field-value">{{ client_status.tomb_number|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">SALES AGENT</div>
+            <div class="field-value">{{ client_status.sales_agent|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">STATUS</div>
+            <div class="field-value" style="border-bottom:none;padding-left:0;">
+              {% if client_status.is_cancelled %}
+                <span class="summary-badge badge-cancelled">Cancelled</span>
+              {% elif client_status.status %}
+                <span class="summary-badge badge-active">Active</span>
+              {% else %}
+                <span class="summary-badge badge-completed">Completed</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TCT/A/R VALIDITY & RENEWAL ─────────────────────────────────── -->
+      <div class="section-header">TCT/A/R Validity &amp; Renewal</div>
+
+      {% with vs=renewal_status|default:"ACTIVE" %}
+      <div class="validity-card {% if vs == 'EXPIRED' %}expired{% elif vs == 'RENEWED' %}renewed{% elif vs == 'CANCELLED' %}cancelled{% else %}active{% endif %}">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="validity-row">
+              <span class="lbl">Start Date (Effective)</span>
+              <span class="val">{{ client_status.start_date|date:"F d, Y"|default:"—" }}</span>
+            </div>
+            <div class="validity-row">
+              <span class="lbl">Initial Term</span>
+              <span class="val">{{ client_status.TCT_INITIAL_TERM_YEARS }} Years</span>
+            </div>
+            <div class="validity-row">
+              <span class="lbl">Initial Expiration</span>
+              <span class="val">
+                {% if initial_expiration_date %}{{ initial_expiration_date|date:"F d, Y" }}{% else %}—{% endif %}
+              </span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="validity-row">
+              <span class="lbl">Current Expiration</span>
+              <span class="val">
+                {% if expiration_date %}{{ expiration_date|date:"F d, Y" }}{% else %}—{% endif %}
+              </span>
+            </div>
+            <div class="validity-row">
+              <span class="lbl">Days Until / Since Expiration</span>
+              <span class="val">
+                {% if days_until_expiration is None %}—
+                {% elif days_until_expiration >= 0 %}
+                  <span class="days-pill {% if days_until_expiration > 30 %}ok{% else %}warn{% endif %}">
+                    {{ days_until_expiration }} day{{ days_until_expiration|pluralize }} left
+                  </span>
+                {% else %}
+                  <span class="days-pill danger">
+                    {{ days_until_expiration|cut:"-" }} day{{ days_until_expiration|cut:"-"|pluralize }} overdue
+                  </span>
+                {% endif %}
+              </span>
+            </div>
+            <div class="validity-row">
+              <span class="lbl">Renewals on Record</span>
+              <span class="val">{{ renewal_count }}</span>
+            </div>
+          </div>
+        </div>
+
+        {% if tct_can_renew %}
+        <div class="mt-3 d-flex justify-content-end no-print">
+          <button type="button" class="btn btn-success btn-sm px-3"
+                  id="open-renew-modal-btn"
+                  onclick="return requireRole('accounting_staff','Only Accounting Staff can renew a TCT/A/R.')">
+            ↻ Renew for 1 Year (Renewal #{{ next_renewal_number }})
+          </button>
+        </div>
+        {% elif client_status.is_cancelled %}
+        <div class="alert alert-secondary mt-3 mb-0 py-2 small">
+          This TCT/A/R is cancelled — no further renewals are allowed.
+        </div>
+        {% elif client_status.plan == "TCT A/R" %}
+        <div class="alert alert-info mt-3 mb-0 py-2 small">
+          Renewals become available only after the initial {{ client_status.TCT_INITIAL_TERM_YEARS }}-year term ends
+          ({{ initial_expiration_date|date:"M d, Y" }}). Each renewal extends the TCT/A/R by exactly 1 year.
+        </div>
+        {% endif %}
+      </div>
+      {% endwith %}
+      <!-- ───────────────────────────────────────────────────────────────── -->
+
+      <div class="section-header">Financial Breakdown</div>
+
+      <table class="money-table">
+        <tr>
+          <td class="money-label">LOT PRICE</td>
+          <td class="money-value">₱{{ client_status.total_lot_excl_doc|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr>
+          <td class="money-label">PERPETUAL CARE</td>
+          <td class="money-value">₱{{ client_status.total_pcare|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr>
+          <td class="money-label">DOCUMENTATION</td>
+          <td class="money-value">₱{{ client_status.documentation_fee|default:0|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr class="grand">
+          <td class="money-label">TOTAL AMOUNT</td>
+          <td class="money-value">₱{{ client_status.total_contract_price|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr>
+          <td class="money-label">TOTAL PAID</td>
+          <td class="money-value balance-paid-amount">₱{{ running_total|floatformat:2|intcomma }}</td>
+        </tr>
+        <tr class="grand">
+          <td class="money-label">OUTSTANDING BALANCE</td>
+          <td class="money-value {% if outstanding > 0 %}balance-outstanding{% else %}balance-cleared{% endif %}">
+            ₱{{ outstanding|floatformat:2|intcomma }}
+          </td>
+        </tr>
+      </table>
+
+      <div class="section-header">Interment Record</div>
+
+      <div class="field-grid">
+        <div>
+          <div class="field-row">
+            <div class="field-label">NAME</div>
+            <div class="field-value">
+              {% if interment_recipients %}
+                {% for r in interment_recipients %}{{ r.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+              {% else %}—{% endif %}
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">DEATH CERTIFICATION NO.</div>
+            <div class="field-value">{{ client_status.death_certificate_number|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">DATE REGISTERED</div>
+            <div class="field-value">{{ client_status.pa_date|date:"d-M-y"|default:"—" }}</div>
+          </div>
+        </div>
+        <div>
+          <div class="field-row">
+            <div class="field-label">DATE OF DEATH</div>
+            <div class="field-value">{{ client_status.date_of_death|date:"d-M-y"|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">DATE OF INTERMENT</div>
+            <div class="field-value">{{ client_status.interment_date|date:"d-M-y"|default:"—" }}</div>
+          </div>
+          <div class="field-row">
+            <div class="field-label">TIME</div>
+            <div class="field-value">&nbsp;</div>
+          </div>
+        </div>
+      </div>
+
+    </div>{# /#section-contract #}
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         SECTION B — RECORD OF PAYMENT
+    ═══════════════════════════════════════════════════════════════════ -->
+    <div id="section-ledger">
+
+      <div class="section-header" style="margin-top:32px;">Record of Payment</div>
+
+      <table class="billing-table">
+        <thead>
+          <tr>
+            <th colspan="4" class="group-billing">Billing</th>
+            <th colspan="5" class="group-payment">Payment</th>
+          </tr>
+          <tr>
+            <th>Renewal<br>Period</th>
+            <th>Lease Amt.</th>
+            <th>Penalty<br>Charges</th>
+            <th>Total Due</th>
+            <th>Date</th>
+            <th>Ref. No.</th>
+            <th>Amount<br>Paid</th>
+            <th>Year</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="opening-row">
+            <td class="center">
+              {% if initial_expiration_date %}{{ initial_expiration_date|date:"m/d/Y" }}{% else %}—{% endif %}
+            </td>
+            <td class="money">₱{{ client_status.total_contract_price|floatformat:2|intcomma }}</td>
+            <td class="money">—</td>
+            <td class="money">₱{{ client_status.total_contract_price|floatformat:2|intcomma }}</td>
+            <td class="center">—</td>
+            <td class="center">—</td>
+            <td class="money">—</td>
+            <td class="center">—</td>
+            <td class="money">₱{{ client_status.total_contract_price|floatformat:2|intcomma }}</td>
+          </tr>
+
+          {% for row in contract_payments %}
+          <tr>
+            <td class="center">—</td>
+            <td class="money">—</td>
+            <td class="money">
+              {% if row.penalty %}₱{{ row.penalty|floatformat:2|intcomma }}{% else %}—{% endif %}
+            </td>
+            <td class="money">—</td>
+            <td class="center">{{ row.date|date:"m/d/Y"|default:"—" }}</td>
+            <td class="center">{{ row.or_number|default:"—" }}</td>
+            <td class="money balance-paid-amount">₱{{ row.amount|floatformat:2|intcomma }}</td>
+            <td class="center">{{ row.year|default:"—" }}</td>
+            <td class="money">₱{{ row.balance|floatformat:2|intcomma }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="center" style="padding:16px;color:#6b7280;font-style:italic;">
+              No payments recorded yet.
+            </td>
+          </tr>
+          {% endfor %}
+
+          <tr class="blank-row">
+            <td class="center">—</td><td class="money">—</td><td class="money">—</td>
+            <td class="money">—</td><td class="center">—</td><td class="center">—</td>
+            <td class="money">—</td><td class="center">—</td><td class="money">—</td>
+          </tr>
+          <tr class="blank-row">
+            <td class="center">—</td><td class="money">—</td><td class="money">—</td>
+            <td class="money">—</td><td class="center">—</td><td class="center">—</td>
+            <td class="money">—</td><td class="center">—</td><td class="money">—</td>
+          </tr>
+
+          <tr class="totals-row">
+            <td colspan="6" class="center">TOTALS</td>
+            <td class="money">₱{{ running_total|floatformat:2|intcomma }}</td>
+            <td class="center">—</td>
+            <td class="money outstanding">₱{{ outstanding|floatformat:2|intcomma }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {% if not client_status.is_cancelled and outstanding > 0 %}
+      <div class="mt-4 no-print d-flex justify-content-end">
+        <button class="btn btn-success px-4" id="add-payment-btn">
+          + Add Payment / Record O.R.
+        </button>
+      </div>
+      {% endif %}
+
+      <!-- ── RENEWAL HISTORY ────────────────────────────────────────────── -->
+      <div class="section-header" style="margin-top:36px;">Renewal History</div>
+
+      {% if renewals %}
+      <div class="table-responsive">
+      <table class="renewal-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Renewal Date</th>
+            <th>Previous Expiration</th>
+            <th>New Expiration</th>
+            <th>Period</th>
+            <th>Status</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in renewals %}
+          <tr class="{% if r.status == 'Active' %}active-row{% endif %}">
+            <td class="center">{{ r.renewal_number }}</td>
+            <td class="center">{{ r.renewal_date|date:"M d, Y" }}</td>
+            <td class="center">{{ r.previous_expiration_date|date:"M d, Y" }}</td>
+            <td class="center fw-bold">{{ r.new_expiration_date|date:"M d, Y" }}</td>
+            <td class="center">{{ r.renewal_period_years }} year{{ r.renewal_period_years|pluralize }}</td>
+            <td class="center">
+              {% if r.status == "Active" %}
+                <span class="badge bg-success">Active</span>
+              {% elif r.status == "Superseded" %}
+                <span class="badge bg-secondary">Superseded</span>
+              {% elif r.status == "Cancelled" %}
+                <span class="badge bg-danger">Cancelled</span>
+              {% else %}
+                <span class="badge bg-light text-dark">{{ r.status }}</span>
+              {% endif %}
+            </td>
+            <td>{{ r.note|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="alert alert-light border mb-0 small text-muted">
+        No renewals recorded yet. This TCT/A/R is still within its initial {{ client_status.TCT_INITIAL_TERM_YEARS }}-year term
+        (expires {{ initial_expiration_date|date:"F d, Y" }}).
+      </div>
+      {% endif %}
+      <!-- ───────────────────────────────────────────────────────────────── -->
+
+    </div>{# /#section-ledger #}
+
+  </div>{# /.contract-body #}
+</div>{# /.contract-wrap #}
+
+<div id="payment-config"
+     data-client-status-id="{{ client_status.pk }}"
+     data-remaining-balance="{{ outstanding|stringformat:'f' }}"
+     style="display:none"></div>
+{% endblock %}
+
+
+{% block modals %}
+<!-- ── PAYMENT MODAL ──────────────────────────────────────────────────── -->
+<div class="modal fade" id="payModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header">
+    <h5 class="modal-title">Record Payment / O.R.</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    <p class="mb-1"><strong>Plan:</strong> {{ client_status.plan }}</p>
+    <p class="mb-3 text-muted small">
+      Outstanding balance: ₱<span id="modal-balance-hint">{{ outstanding|floatformat:2|intcomma }}</span>
+    </p>
+
+    <!-- NEW: DATE PAID FIELD -->
+    <label class="form-label">Payment Date <span class="text-danger">*</span></label>
+    <input type="date" id="datePaidInput" class="form-control mb-2" required>
+    <div class="form-text mb-3">
+      You can backdate this payment if it was received earlier but not yet recorded.
+    </div>
+
+    <label class="form-label">Amount Paid <span class="text-danger">*</span></label>
+    <input type="number" id="amountInput" class="form-control mb-2"
+           placeholder="e.g. 35500.00" min="0.01" step="0.01">
+
+    <label class="form-label">O.R. Number</label>
+    <input type="text" id="csiInput" class="form-control mb-2"
+           placeholder="e.g. 35361" maxlength="50">
+
+    <label class="form-label">Penalty Charges</label>
+    <input type="number" id="penaltyInput" class="form-control mb-2"
+           placeholder="0.00" min="0" step="0.01" value="0">
+
+    <label class="form-label">Note <small class="text-muted">(optional)</small></label>
+    <input type="text" id="noteInput" class="form-control mb-3"
+           placeholder="e.g. Full payment / BIR stamp">
+
+    <label class="form-label">Enter 4-digit PIN to confirm</label>
+    <input type="password" id="pinInput" class="form-control"
+           placeholder="Enter PIN" autocomplete="off" inputmode="numeric" maxlength="4">
+    <div id="pinError" class="text-danger small mt-2 d-none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button class="btn btn-success" id="confirmPayBtn">Confirm Payment</button>
+  </div>
+</div></div></div>
+
+<!-- ── RENEWAL MODAL ──────────────────────────────────────────────────── -->
+<div class="modal fade" id="renewModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header bg-success text-white">
+    <h5 class="modal-title">↻ Renew TCT/A/R — 1 Year</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+  </div>
+  <div class="modal-body">
+    <p class="mb-1"><strong>Client:</strong> {{ client.full_name }}</p>
+    <p class="mb-1"><strong>L.A. No.:</strong> {{ client_status.la_number|default:"—" }}</p>
+    <p class="mb-3"><strong>Renewal #:</strong> {{ next_renewal_number }}</p>
+
+    <div class="alert alert-info py-2 small mb-3">
+      <div><strong>Current Expiration:</strong>
+        {% if expiration_date %}{{ expiration_date|date:"M d, Y" }}{% else %}—{% endif %}</div>
+      <div class="mt-1"><strong>New Expiration (after renewal):</strong>
+        <span id="renewal-new-exp-preview">—</span></div>
+      <hr class="my-2">
+      <div class="mb-0">Renewals extend the current expiration by exactly <strong>1 year</strong>.
+        The initial 7-year term is never reset.</div>
+    </div>
+
+    <label class="form-label">Note <small class="text-muted">(optional)</small></label>
+    <input type="text" id="renewNoteInput" class="form-control mb-3"
+           placeholder="e.g. Renewal fee paid — O.R. 99999" maxlength="500">
+
+    <label class="form-label">Enter 4-digit PIN to confirm</label>
+    <input type="password" id="renewPinInput" class="form-control"
+           placeholder="Enter PIN" autocomplete="off" inputmode="numeric" maxlength="4">
+    <div id="renewPinError" class="text-danger small mt-2 d-none"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button class="btn btn-success" id="confirmRenewBtn">Confirm Renewal</button>
+  </div>
+</div></div></div>
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+  document.getElementById("print-date").textContent = new Date().toLocaleString();
+
+  /* Print section isolation */
+  function printSection(which) {
+    document.body.classList.remove("printing-contract", "printing-ledger");
+    document.body.classList.add("printing-" + which);
+    window.print();
+  }
+  window.addEventListener("afterprint", function () {
+    document.body.classList.remove("printing-contract", "printing-ledger");
+  });
+
+  const _cfg = document.getElementById("payment-config");
+  const CLIENT_STATUS_ID = parseInt(_cfg.dataset.clientStatusId, 10);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // PAYMENT MODAL
+  // ═══════════════════════════════════════════════════════════════════════
+  const payModal = new bootstrap.Modal(document.getElementById("payModal"));
+
+  document.getElementById("add-payment-btn")?.addEventListener("click", function () {
+    if (!requireRole('accounting_staff', 'Only Accounting Staff can record payments.')) return;
+    
+    // Auto-fill the date field with today's date in YYYY-MM-DD format
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById("datePaidInput").value = `${yyyy}-${mm}-${dd}`;
+
+    document.getElementById("amountInput").value  = "";
+    document.getElementById("penaltyInput").value = "0";
+    document.getElementById("csiInput").value     = "";
+    document.getElementById("noteInput").value    = "";
+    document.getElementById("pinInput").value     = "";
+    document.getElementById("pinError").classList.add("d-none");
+    const cb = document.getElementById("confirmPayBtn");
+    cb.disabled = false; cb.textContent = "Confirm Payment";
+    payModal.show();
+  });
+
+  document.getElementById("confirmPayBtn").addEventListener("click", function () {
+    const amount        = document.getElementById("amountInput").value;
+    const datePaid      = document.getElementById("datePaidInput").value;
+    const penalty       = document.getElementById("penaltyInput").value || "0";
+    const paymentCharge = "0";
+    const csi           = document.getElementById("csiInput").value;
+    const note          = document.getElementById("noteInput").value;
+    const pin           = document.getElementById("pinInput").value;
+    const errEl         = document.getElementById("pinError");
+
+    if (!amount || parseFloat(amount) <= 0) {
+      errEl.textContent = "Please enter a valid amount.";
+      errEl.classList.remove("d-none"); return;
+    }
+    if (!datePaid) {
+      errEl.textContent = "Please select the payment date.";
+      errEl.classList.remove("d-none"); return;
+    }
+    if (!pin) {
+      errEl.textContent = "Please enter your PIN.";
+      errEl.classList.remove("d-none"); return;
+    }
+    errEl.classList.add("d-none");
+
+    const btn = this; btn.disabled = true; btn.textContent = "Processing…";
+
+    fetch(window.location.href, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+      body: `client_status_id=${CLIENT_STATUS_ID}`
+          + `&amount=${encodeURIComponent(amount)}`
+          + `&date_paid=${encodeURIComponent(datePaid)}` // ← NEW
+          + `&penalty=${encodeURIComponent(penalty)}`
+          + `&payment_charge=${encodeURIComponent(paymentCharge)}`
+          + `&csi_number=${encodeURIComponent(csi)}`
+          + `&note=${encodeURIComponent(note)}`
+          + `&pin=${encodeURIComponent(pin)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) { location.reload(); }
+      else {
+        errEl.textContent = data.error || "Payment failed.";
+        errEl.classList.remove("d-none");
+        btn.disabled = false; btn.textContent = "Confirm Payment";
+      }
+    })
+    .catch(() => {
+      errEl.textContent = "Network error. Please try again.";
+      errEl.classList.remove("d-none");
+      btn.disabled = false; btn.textContent = "Confirm Payment";
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // RENEWAL MODAL
+  // ═══════════════════════════════════════════════════════════════════════
+  const renewModalEl = document.getElementById("renewModal");
+  const renewModal = renewModalEl ? new bootstrap.Modal(renewModalEl) : null;
+
+  (function computeRenewalPreview() {
+    const previewEl = document.getElementById("renewal-new-exp-preview");
+    if (!previewEl) return;
+    const currentExpIso = "{% if expiration_date %}{{ expiration_date|date:'Y-m-d' }}{% endif %}";
+    if (!currentExpIso) { previewEl.textContent = "—"; return; }
+    const d = new Date(currentExpIso + "T00:00:00");
+    const next = new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
+    if (next.getMonth() !== d.getMonth()) {
+      next.setDate(0);
+    }
+    const opts = { year: "numeric", month: "short", day: "2-digit" };
+    previewEl.textContent = next.toLocaleDateString("en-US", opts);
+  })();
+
+  document.getElementById("open-renew-modal-btn")?.addEventListener("click", function () {
+    if (!requireRole('accounting_staff', 'Only Accounting Staff can renew a TCT/A/R.')) return;
+    document.getElementById("renewNoteInput").value = "";
+    document.getElementById("renewPinInput").value  = "";
+    document.getElementById("renewPinError").classList.add("d-none");
+    const cb = document.getElementById("confirmRenewBtn");
+    cb.disabled = false; cb.textContent = "Confirm Renewal";
+    renewModal && renewModal.show();
+  });
+
+  document.getElementById("confirmRenewBtn")?.addEventListener("click", function () {
+    const note  = document.getElementById("renewNoteInput").value;
+    const pin   = document.getElementById("renewPinInput").value;
+    const errEl = document.getElementById("renewPinError");
+
+    if (!pin) {
+      errEl.textContent = "Please enter your PIN.";
+      errEl.classList.remove("d-none");
+      return;
+    }
+    errEl.classList.add("d-none");
+
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = "Processing…";
+
+    fetch("{% url 'renew-tct' client_status.pk %}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-CSRFToken": "{{ csrf_token }}",
+      },
+      body: `pin=${encodeURIComponent(pin)}&note=${encodeURIComponent(note)}`,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        location.reload();
+      } else {
+        errEl.textContent = data.error || "Renewal failed.";
+        errEl.classList.remove("d-none");
+        btn.disabled = false;
+        btn.textContent = "Confirm Renewal";
+      }
+    })
+    .catch(() => {
+      errEl.textContent = "Network error. Please try again.";
+      errEl.classList.remove("d-none");
+      btn.disabled = false;
+      btn.textContent = "Confirm Renewal";
+    });
+  });
+</script>
+{% endblock %}
